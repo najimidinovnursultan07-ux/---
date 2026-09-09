@@ -1,7 +1,11 @@
 import axios from "axios";
 
+const API_URL = (import.meta.env.VITE_API_URL || "https://mentor-0qlv.onrender.com")
+  .replace(/^\[|\]$/g, "")
+  .replace(/\/+$/, "");
+
 const axiosInstance = axios.create({
-  baseURL: `${(import.meta.env.VITE_API_URL || "https://mentor-0qlv.onrender.com/").replace(/\/$/, "")}/api`,
+  baseURL: `${API_URL}/api`,
   headers: {
     "Content-Type": "application/json",
   },
