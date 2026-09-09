@@ -274,6 +274,7 @@ export default function App() {
     <main className="min-h-screen px-3 py-8 sm:px-5 sm:py-14">
       <div className="mx-auto max-w-[1160px]">
         <RoleHeader activeRole={activeRole} user={user} onLogout={() => { window.localStorage.removeItem("attendance-token"); window.location.reload(); }} />
+        {activeRole === "ADMIN" && <div className="mb-5 rounded-md border border-[#c6ddc8] bg-[#edf5ee] px-4 py-3 text-sm font-extrabold text-forest" role="status">Режим наблюдения (Администратор)</div>}
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && <UserRolePanel role={activeRole} />}
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && <MentorWorkspace role={activeRole} />}
         {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <GroupManagementPanel canManage={activeRole === "MENTOR"} deletedGroupId={deletedGroupId} onGroupCreated={(group) => { setGroups((current) => [...current, group]); setActiveGroupId(String(group.id)); }} role={activeRole} />}
@@ -287,7 +288,7 @@ export default function App() {
           activeGroupId={activeGroupId}
           canDelete={canManageStudents}
           groups={groups}
-          onAddGroup={() => document.getElementById("group-management-panel")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+          onAddGroup={canManageStudents ? () => document.getElementById("group-management-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }) : undefined}
           onDeleteGroup={setGroupToDelete}
           onGroupChange={setActiveGroupId}
         />
