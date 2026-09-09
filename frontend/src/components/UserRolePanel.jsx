@@ -19,6 +19,7 @@ export default function UserRolePanel({ role }) {
       const updated = await changeUserRole(userId, nextRole);
       setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
     } catch (requestError) {
+      console.log("Role update error:", requestError.response?.data);
       setError(requestError.response?.data?.detail || "Ролду өзгөртүү мүмкүн болгон жок.");
     }
   }
