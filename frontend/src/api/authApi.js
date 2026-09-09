@@ -1,17 +1,31 @@
 import axiosInstance from "./axiosInstance";
 
+function logAuthError(operation, error) {
+  console.log(`${operation} error details:`, error.response?.data);
+}
+
 export async function login(email, password) {
-  const { data } = await axiosInstance.post("/auth/login/", { email, password });
-  return data;
+  try {
+    const { data } = await axiosInstance.post("/auth/login/", { email, password });
+    return data;
+  } catch (error) {
+    logAuthError("Login", error);
+    throw error;
+  }
 }
 
 export async function register(fullName, email, password) {
-  const { data } = await axiosInstance.post("/auth/register/", {
-    full_name: fullName,
-    email,
-    password,
-  });
-  return data;
+  try {
+    const { data } = await axiosInstance.post("/auth/register/", {
+      full_name: fullName,
+      email,
+      password,
+    });
+    return data;
+  } catch (error) {
+    logAuthError("Registration", error);
+    throw error;
+  }
 }
 
 export async function fetchMe() {
