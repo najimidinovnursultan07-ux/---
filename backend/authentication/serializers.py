@@ -96,6 +96,16 @@ class LoginSerializer(serializers.Serializer):
 class RoleChangeSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=UserProfile.Role.choices)
 
+    def update(self, user, validated_data):
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.role = validated_data.get('role', profile.role)
+        profile.is_approved = profile.role != UserProfile.Role.USER
+        profile.save(update_fields=['role', 'is_approved'])
+        return user
+
+    def create(self, validated_data):
+        raise NotImplementedError('Role changes require an existing user.')
+
 
 class ProfileUpdateSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150, required=False)

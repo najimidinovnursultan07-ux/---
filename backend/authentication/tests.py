@@ -60,6 +60,26 @@ class AuthenticationApiTests(APITestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(User.objects.filter(id=mentor.id).exists())
 
+    def test_admin_can_update_user_role(self):
+        User = get_user_model()
+        admin = User.objects.create_user(username='role-admin@example.com', password='password123')
+        UserProfile.objects.create(user=admin, role=UserProfile.Role.ADMIN, is_approved=True)
+        target = User.objects.create_user(username='role-target@example.com', password='password123')
+        UserProfile.objects.create(user=target, role=UserProfile.Role.USER, is_approved=False)
+        self.client.force_authenticate(admin)
+
+        response = self.client.patch(
+            f'/api/users/{target.id}/change-role/',
+            {'role': UserProfile.Role.MENTOR},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        target.refresh_from_db()
+        self.assertEqual(target.role_profile.role, UserProfile.Role.MENTOR)
+        self.assertTrue(target.role_profile.is_approved)
+        self.assertEqual(response.data['role'], UserProfile.Role.MENTOR)
+
     def test_non_admin_cannot_delete_user_account(self):
         User = get_user_model()
         mentor = User.objects.create_user(username='mentor-delete@example.com', password='password123')

@@ -77,7 +77,7 @@ class ChangeRoleView(APIView):
         except User.DoesNotExist:
             return Response({'detail': 'Колдонуучу табылган жок.'}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = RoleChangeSerializer(data=request.data)
+        serializer = RoleChangeSerializer(target, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         new_role = serializer.validated_data['role']
         if target.is_superuser and actor_role != UserProfile.Role.ADMIN:
@@ -85,10 +85,7 @@ class ChangeRoleView(APIView):
         if actor_role == UserProfile.Role.CURATOR and new_role != UserProfile.Role.MENTOR:
             return Response({'detail': 'Куратор бир гана ментор ролун бере алат.'}, status=status.HTTP_403_FORBIDDEN)
 
-        profile, _ = UserProfile.objects.get_or_create(user=target)
-        profile.role = new_role
-        profile.is_approved = new_role != UserProfile.Role.USER
-        profile.save(update_fields=['role', 'is_approved'])
+        serializer.save()
         target.refresh_from_db()
         return Response(UserSerializer(target).data)
 
