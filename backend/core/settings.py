@@ -165,3 +165,6 @@ import os
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+CORS_ALLOWED_ORIGINS = [
+    "https://mentor-sage.vercel.app/"
+]
