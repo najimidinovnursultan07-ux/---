@@ -15,11 +15,18 @@ class AuthenticationApiTests(APITestCase):
         call_command('create_accountant')
 
         User = get_user_model()
-        accountant = User.objects.get(email='accountant@okurmen.com')
+        accountant = User.objects.get(email='accountant@gmail.com')
         self.assertTrue(accountant.is_active)
         self.assertTrue(accountant.check_password('Accountant123!'))
         self.assertEqual(accountant.role_profile.role, UserProfile.Role.ACCOUNTANT)
         self.assertTrue(accountant.role_profile.is_approved)
+
+        login_response = self.client.post('/api/auth/login/', {
+            'email': 'accountant@gmail.com',
+            'password': 'Accountant123!',
+        }, format='json')
+        self.assertEqual(login_response.status_code, 200)
+        self.assertEqual(login_response.data['user']['role'], UserProfile.Role.ACCOUNTANT)
 
     def test_create_accountant_command_updates_existing_account_without_duplicate(self):
         User = get_user_model()
@@ -33,10 +40,11 @@ class AuthenticationApiTests(APITestCase):
 
         call_command('create_accountant')
 
-        self.assertEqual(User.objects.filter(email='accountant@okurmen.com').count(), 1)
+        self.assertEqual(User.objects.filter(email='accountant@gmail.com').count(), 1)
+        self.assertEqual(User.objects.filter(email='accountant@okurmen.com').count(), 0)
         accountant.refresh_from_db()
         self.assertTrue(accountant.is_active)
-        self.assertTrue(accountant.check_password('existing-password'))
+        self.assertTrue(accountant.check_password('Accountant123!'))
         self.assertEqual(accountant.role_profile.role, UserProfile.Role.ACCOUNTANT)
         self.assertTrue(accountant.role_profile.is_approved)
     def test_register_returns_field_errors(self):

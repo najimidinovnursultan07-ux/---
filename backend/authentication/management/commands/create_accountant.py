@@ -5,6 +5,7 @@ from authentication.models import UserProfile
 
 
 ACCOUNTANT_EMAIL = 'accountant@okurmen.com'
+ACCOUNTANT_GMAIL = 'accountant@gmail.com'
 ACCOUNTANT_PASSWORD = 'Accountant123!'
 
 
@@ -14,22 +15,27 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         User = get_user_model()
         user = (
-            User.objects.filter(email__iexact=ACCOUNTANT_EMAIL).first()
+            User.objects.filter(email__iexact=ACCOUNTANT_GMAIL).first()
+            or User.objects.filter(username__iexact=ACCOUNTANT_GMAIL).first()
+            or User.objects.filter(email__iexact=ACCOUNTANT_EMAIL).first()
             or User.objects.filter(username__iexact=ACCOUNTANT_EMAIL).first()
         )
         created = user is None
 
         if created:
             user = User.objects.create_user(
-                username=ACCOUNTANT_EMAIL,
-                email=ACCOUNTANT_EMAIL,
+                username=ACCOUNTANT_GMAIL,
+                email=ACCOUNTANT_GMAIL,
                 password=ACCOUNTANT_PASSWORD,
                 first_name='Бухгалтер',
                 is_active=True,
             )
         else:
+            user.email = ACCOUNTANT_GMAIL
+            user.username = ACCOUNTANT_GMAIL
             user.is_active = True
-            user.save(update_fields=['is_active'])
+            user.set_password(ACCOUNTANT_PASSWORD)
+            user.save(update_fields=['email', 'username', 'password', 'is_active'])
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.role = UserProfile.Role.ACCOUNTANT
