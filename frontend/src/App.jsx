@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Archive, CheckCircle2, Download, FileText, Plus, RefreshCw, Wifi } from "lucide-react";
+import { AlertCircle, Archive, CheckCircle2, FileText, RefreshCw } from "lucide-react";
 import { fetchMe } from "./api/authApi";
 import AuthPanel from "./components/AuthPanel";
 import UserRolePanel from "./components/UserRolePanel";
-import AttendanceTable from "./components/AttendanceTable";
 import AddStudentModal from "./components/AddStudentModal";
-import DateSelector from "./components/DateSelector";
 import RoleHeader from "./components/RoleHeader";
-import StatsHeader, { DateSummary, StatsSummary } from "./components/StatsHeader";
-import { createStudent, deleteGroup, deleteStudent, downloadAttendancePdf, fetchAttendance, fetchStudents, saveAttendance, updateStudent } from "./api/attendanceApi";
+import StatsHeader from "./components/StatsHeader";
+import {
+  createStudent,
+  deleteGroup,
+  deleteStudent,
+  downloadAttendancePdf,
+  fetchAttendance,
+  fetchStudents,
+  updateStudent,
+} from "./api/attendanceApi";
 import AttendanceHistory from "./components/AttendanceHistory";
-import AttendanceModeSection from "./components/AttendanceModeSection";
+import DailyJournal from "./components/DailyJournal";
 import GroupManagementPanel from "./components/GroupManagementPanel";
 import GroupTabs from "./components/GroupTabs";
 import MentorWorkspace from "./components/MentorWorkspace";
@@ -24,18 +30,6 @@ function getToday() {
   return new Date(today.getTime() - timezoneOffset).toISOString().slice(0, 10);
 }
 
-function createAttendanceMap(students, records = []) {
-  const recordsByStudent = new Map(records.map((record) => [record.student_id, record.is_present]));
-  return students.reduce((map, student) => {
-    map[student.id] = Boolean(recordsByStudent.get(student.id));
-    return map;
-  }, {});
-}
-
-function createAttendanceRecords(records = []) {
-  return records;
-}
-
 function getErrorMessage(error, fallback) {
   if (error?.response?.data?.detail) return error.response.data.detail;
   if (error?.request) return "Django сервери жеткиликсиз. Сервердин иштеп жатканын текшериңиз.";
@@ -47,10 +41,8 @@ export default function App() {
   const [groups, setGroups] = useState([]);
   const [activeGroupId, setActiveGroupId] = useState("all");
   const [selectedDate, setSelectedDate] = useState(getToday);
-  const [attendanceMap, setAttendanceMap] = useState({});
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
   const [activeRole, setActiveRole] = useState(() => window.localStorage.getItem("attendance-role") || "ADMIN");
@@ -66,42 +58,54 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [activeView, setActiveView] = useState("daily");
 
-  const handleAuthenticated = useCallback(() => {
-    window.location.reload();
-  }, []);
-
+  // ── Derived ────────────────────────────────────────────────────────────────
   const canEditAttendance = activeRole === "MENTOR" && selectedDate === getToday();
   const canManageStudents = activeRole === "MENTOR";
+
   const visibleStudents = useMemo(
-    () => activeGroupId === "all" ? students : students.filter((student) => String(student.group_id) === activeGroupId),
+    () =>
+      activeGroupId === "all"
+        ? students
+        : students.filter((s) => String(s.group_id) === activeGroupId),
     [activeGroupId, students],
   );
 
+  // presentCount still used by StatsHeader (page title area)
   const presentCount = useMemo(
-    () => visibleStudents.reduce((count, student) => count + (attendanceMap[student.id] ? 1 : 0), 0),
-    [attendanceMap, visibleStudents],
+    () =>
+      attendanceRecords.reduce(
+        (n, r) => n + (r.is_present && visibleStudents.some((s) => s.id === r.student_id) ? 1 : 0),
+        0,
+      ),
+    [attendanceRecords, visibleStudents],
   );
 
-  const loadAttendance = useCallback(async (date, currentStudents = students) => {
-    if (!currentStudents.length) return;
-    setError("");
-    setIsLoading(true);
-    try {
-      const records = await fetchAttendance(date);
-      setAttendanceMap(createAttendanceMap(currentStudents, records));
-      setAttendanceRecords(createAttendanceRecords(records));
-    } catch (loadError) {
-      console.error("Attendance request failed", loadError);
-      setError(getErrorMessage(loadError, "Катышуу маалыматтарын жүктөө мүмкүн болгон жок."));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [students]);
+  // ── Data loading ───────────────────────────────────────────────────────────
+  const loadAttendance = useCallback(
+    async (date, currentStudents = students) => {
+      if (!currentStudents.length) return;
+      setError("");
+      setIsLoading(true);
+      try {
+        const records = await fetchAttendance(date);
+        setAttendanceRecords(records);
+      } catch (loadError) {
+        console.error("Attendance request failed", loadError);
+        setError(getErrorMessage(loadError, "Катышуу маалыматтарын жүктөө мүмкүн болгон жок."));
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [students],
+  );
 
-  const handleDateChange = useCallback(async (date) => {
-    setSelectedDate(date);
-    await loadAttendance(date);
-  }, [loadAttendance]);
+  const handleDateChange = useCallback(
+    async (date) => {
+      setSelectedDate(date);
+      await loadAttendance(date);
+    },
+    [loadAttendance],
+  );
 
   const handleToday = useCallback(() => {
     const today = getToday();
@@ -109,68 +113,51 @@ export default function App() {
     loadAttendance(today);
   }, [loadAttendance]);
 
-  const handleToggle = useCallback((studentId) => {
-    if (!canEditAttendance) return;
-    setAttendanceMap((currentMap) => ({
-      ...currentMap,
-      [studentId]: !currentMap[studentId],
-    }));
-  }, [canEditAttendance]);
+  // ── Student CRUD ──────────────────────────────────────────────────────────
+  const handleAuthenticated = useCallback(() => {
+    window.location.reload();
+  }, []);
 
-  const handleSave = useCallback(async () => {
-    if (!canEditAttendance) return;
-    setIsSaving(true);
-    setToast(null);
-    setError("");
-    const records = students.map((student) => ({
-      student_id: student.id,
-      is_present: Boolean(attendanceMap[student.id]),
-    }));
-
-    try {
-      await saveAttendance(selectedDate, records);
-      setToast({ type: "success", message: "Катышуу ийгиликтүү сакталды." });
-    } catch (saveError) {
-      console.error("Attendance save failed", saveError);
-      setToast({ type: "error", message: getErrorMessage(saveError, "Сактоо ишке ашкан жок.") });
-    } finally {
-      setIsSaving(false);
-      window.setTimeout(() => setToast(null), 3500);
-    }
-  }, [attendanceMap, canEditAttendance, selectedDate, students]);
+  const showToast = useCallback((t) => {
+    setToast(typeof t === "string" ? { type: "success", message: t } : t);
+    window.setTimeout(() => setToast(null), 3500);
+  }, []);
 
   const handleAddStudent = useCallback(async (studentDetails) => {
     setIsAddingStudent(true);
     try {
       const student = await createStudent(studentDetails);
-      setStudents((currentStudents) => [...currentStudents, student].sort((first, second) => first.full_name.localeCompare(second.full_name, "ky")));
-      setAttendanceMap((currentMap) => ({ ...currentMap, [student.id]: false }));
+      setStudents((prev) =>
+        [...prev, student].sort((a, b) => a.full_name.localeCompare(b.full_name, "ky")),
+      );
       setIsAddModalOpen(false);
-      setToast({ type: "success", message: "Жаңы окуучу кошулду." });
-      window.setTimeout(() => setToast(null), 3000);
+      showToast("Жаңы окуучу кошулду.");
     } catch (createError) {
       throw new Error(getErrorMessage(createError, "Окуучуну кошуу мүмкүн болгон жок."));
     } finally {
       setIsAddingStudent(false);
     }
-  }, []);
+  }, [showToast]);
 
   const handleUpdateStudent = useCallback(async (studentDetails) => {
     if (!studentToEdit) return;
     setIsAddingStudent(true);
     try {
-      const updatedStudent = await updateStudent(studentToEdit.id, studentDetails);
-      setStudents((currentStudents) => currentStudents.map((student) => student.id === updatedStudent.id ? updatedStudent : student).sort((first, second) => first.full_name.localeCompare(second.full_name, "ky")));
+      const updated = await updateStudent(studentToEdit.id, studentDetails);
+      setStudents((prev) =>
+        prev
+          .map((s) => (s.id === updated.id ? updated : s))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name, "ky")),
+      );
       setStudentToEdit(null);
       setIsAddModalOpen(false);
-      setToast({ type: "success", message: "Окуучунун маалыматтары өзгөртүлдү." });
-      window.setTimeout(() => setToast(null), 3000);
+      showToast("Окуучунун маалыматтары өзгөртүлдү.");
     } catch (updateError) {
       throw new Error(getErrorMessage(updateError, "Окуучунун маалыматтарын өзгөртүү мүмкүн болгон жок."));
     } finally {
       setIsAddingStudent(false);
     }
-  }, [studentToEdit]);
+  }, [studentToEdit, showToast]);
 
   const handleDeleteStudent = useCallback(async () => {
     if (!studentToDelete) return;
@@ -178,22 +165,16 @@ export default function App() {
     setError("");
     try {
       await deleteStudent(studentToDelete.id);
-      setStudents((currentStudents) => currentStudents.filter((student) => student.id !== studentToDelete.id));
-      setAttendanceMap((currentMap) => {
-        const nextMap = { ...currentMap };
-        delete nextMap[studentToDelete.id];
-        return nextMap;
-      });
-      setAttendanceRecords((currentRecords) => currentRecords.filter((record) => record.student_id !== studentToDelete.id));
+      setStudents((prev) => prev.filter((s) => s.id !== studentToDelete.id));
+      setAttendanceRecords((prev) => prev.filter((r) => r.student_id !== studentToDelete.id));
       setStudentToDelete(null);
-      setToast({ type: "success", message: "Окуучу ийгиликтүү өчүрүлдү." });
-      window.setTimeout(() => setToast(null), 3000);
+      showToast("Окуучу ийгиликтүү өчүрүлдү.");
     } catch (deleteError) {
-      setToast({ type: "error", message: getErrorMessage(deleteError, "Окуучуну өчүрүү мүмкүн болгон жок.") });
+      showToast({ type: "error", message: getErrorMessage(deleteError, "Окуучуну өчүрүү мүмкүн болгон жок.") });
     } finally {
       setIsDeletingStudent(false);
     }
-  }, [studentToDelete]);
+  }, [studentToDelete, showToast]);
 
   const handleDeleteGroup = useCallback(async () => {
     if (!groupToDelete) return;
@@ -201,20 +182,19 @@ export default function App() {
     try {
       await deleteGroup(groupToDelete.id);
       setDeletedGroupId(groupToDelete.id);
-      setGroups((currentGroups) => currentGroups.filter((group) => group.id !== groupToDelete.id));
-      setStudents((currentStudents) => currentStudents.filter((student) => student.group_id !== groupToDelete.id));
+      setGroups((prev) => prev.filter((g) => g.id !== groupToDelete.id));
+      setStudents((prev) => prev.filter((s) => s.group_id !== groupToDelete.id));
       if (activeGroupId === String(groupToDelete.id)) setActiveGroupId("all");
       setGroupToDelete(null);
-      setToast({ type: "success", message: "Тайпа жана анын окуучулары өчүрүлдү." });
-      window.setTimeout(() => setToast(null), 3000);
+      showToast("Тайпа жана анын окуучулары өчүрүлдү.");
     } catch (deleteError) {
-      setToast({ type: "error", message: getErrorMessage(deleteError, "Тайпаны өчүрүү мүмкүн болгон жок.") });
+      showToast({ type: "error", message: getErrorMessage(deleteError, "Тайпаны өчүрүү мүмкүн болгон жок.") });
     } finally {
       setIsDeletingGroup(false);
     }
-  }, [activeGroupId, groupToDelete]);
+  }, [activeGroupId, groupToDelete, showToast]);
 
-  const handleExportReport = useCallback(async () => {
+  const handleExportPdf = useCallback(async () => {
     try {
       const blob = await downloadAttendancePdf(selectedDate);
       const link = document.createElement("a");
@@ -222,27 +202,30 @@ export default function App() {
       link.download = `Kelgender_Otchet_${selectedDate}.pdf`;
       link.click();
       URL.revokeObjectURL(link.href);
-      setToast({ type: "success", message: "PDF отчет жүктөлдү." });
+      showToast("PDF отчет жүктөлдү.");
     } catch (reportError) {
       setError(getErrorMessage(reportError, "Отчетту жүктөө мүмкүн болгон жок."));
     }
-  }, [selectedDate]);
+  }, [selectedDate, showToast]);
 
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
 
-    async function loadStudents() {
+    async function bootstrap() {
       setIsLoading(true);
       try {
         const currentUser = await fetchMe();
         if (!isMounted) return;
         setUser(currentUser);
-        setActiveRole(currentUser.effective_role || currentUser.role || "USER");
-        if ((currentUser.effective_role || currentUser.role) === "ACCOUNTANT") {
-          if (window.location.pathname !== "/accountant/dashboard") window.history.replaceState({}, "", "/accountant/dashboard");
+        const role = currentUser.effective_role || currentUser.role || "USER";
+        setActiveRole(role);
+        if (role === "ACCOUNTANT") {
+          if (window.location.pathname !== "/accountant/dashboard")
+            window.history.replaceState({}, "", "/accountant/dashboard");
           return;
         }
-        const loadedGroups = ["ADMIN", "CURATOR", "MENTOR"].includes(currentUser.effective_role || currentUser.role)
+        const loadedGroups = ["ADMIN", "CURATOR", "MENTOR"].includes(role)
           ? await fetchGroups()
           : [];
         if (!isMounted) return;
@@ -250,13 +233,11 @@ export default function App() {
         const loadedStudents = await fetchStudents();
         if (!isMounted) return;
         setStudents(loadedStudents);
-        const records = await fetchAttendance(selectedDate);
-        if (isMounted) {
-          setAttendanceMap(createAttendanceMap(loadedStudents, records));
-          setAttendanceRecords(records);
-        }
+        const today = getToday();
+        const records = await fetchAttendance(today);
+        if (isMounted) setAttendanceRecords(records);
       } catch (loadError) {
-        console.error("Student request failed", loadError);
+        console.error("Bootstrap failed", loadError);
         if (isMounted) setError(getErrorMessage(loadError, "Окуучуларды жүктөө мүмкүн болгон жок."));
       } finally {
         setIsAuthLoading(false);
@@ -264,96 +245,209 @@ export default function App() {
       }
     }
 
-    loadStudents();
-    return () => {
-      isMounted = false;
-    };
+    bootstrap();
+    return () => { isMounted = false; };
   }, []);
 
-  if (isAuthLoading) return <div className="flex min-h-screen items-center justify-center bg-slate-50"><img alt="Окурмэн жүктөлүүдө" className="h-24 w-24 rounded-full object-contain animate-pulse" src="/logo.jpg" /></div>;
-  if (!user) return <AuthPanel onAuthenticated={handleAuthenticated} />;
-  if (activeRole === "ACCOUNTANT") return <AccountantDashboard user={user} onLogout={() => { window.localStorage.removeItem("attendance-token"); window.location.replace("/"); }} />;
-  if (!user.is_approved && user.role !== "ADMIN") {
-    return <main className="flex min-h-screen items-center justify-center px-5"><div className="max-w-lg rounded-lg border border-[#eadcc3] bg-[#fffaf0] p-8 text-center shadow-sm"><h1 className="mb-3 font-display text-xl font-bold text-ink">Аккаунт күтүп жатат</h1><p className="text-sm leading-6 text-[#765f38]">Аккаунтуңузга уруксат бериле элек. Администратор же Куратор ролуңузду бекитишин күтүңүз.</p><button className="mt-6 rounded-md bg-ink px-4 py-2 text-sm font-bold text-white" onClick={() => { window.localStorage.removeItem("attendance-token"); window.location.reload(); }} type="button">Чыгуу</button></div></main>;
-  }
+  // ── Auth guards ────────────────────────────────────────────────────────────
+  if (isAuthLoading)
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <img
+          alt="Окурмэн жүктөлүүдө"
+          className="h-24 w-24 animate-pulse rounded-full object-contain"
+          src="/logo.jpg"
+        />
+      </div>
+    );
 
+  if (!user) return <AuthPanel onAuthenticated={handleAuthenticated} />;
+
+  if (activeRole === "ACCOUNTANT")
+    return (
+      <AccountantDashboard
+        user={user}
+        onLogout={() => {
+          window.localStorage.removeItem("attendance-token");
+          window.location.replace("/");
+        }}
+      />
+    );
+
+  if (!user.is_approved && user.role !== "ADMIN")
+    return (
+      <main className="flex min-h-screen items-center justify-center px-5">
+        <div className="max-w-lg rounded-lg border border-[#eadcc3] bg-[#fffaf0] p-8 text-center shadow-sm">
+          <h1 className="mb-3 font-display text-xl font-bold text-ink">Аккаунт күтүп жатат</h1>
+          <p className="text-sm leading-6 text-[#765f38]">
+            Аккаунтуңузга уруксат бериле элек. Администратор же Куратор ролуңузду бекитишин күтүңүз.
+          </p>
+          <button
+            className="mt-6 rounded-md bg-ink px-4 py-2 text-sm font-bold text-white"
+            onClick={() => {
+              window.localStorage.removeItem("attendance-token");
+              window.location.reload();
+            }}
+            type="button"
+          >
+            Чыгуу
+          </button>
+        </div>
+      </main>
+    );
+
+  // ── Main render ────────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen px-3 py-8 sm:px-5 sm:py-14">
       <div className="mx-auto max-w-[1160px]">
-        <RoleHeader activeRole={activeRole} user={user} onLogout={() => { window.localStorage.removeItem("attendance-token"); window.location.reload(); }} />
-        {activeRole === "ADMIN" && <div className="mb-5 rounded-md border border-[#c6ddc8] bg-[#edf5ee] px-4 py-3 text-sm font-extrabold text-forest" role="status">Режим наблюдения (Администратор)</div>}
-        {(activeRole === "ADMIN" || activeRole === "CURATOR") && <UserRolePanel role={activeRole} />}
-        {(activeRole === "ADMIN" || activeRole === "CURATOR") && <MentorWorkspace role={activeRole} />}
-        {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <GroupManagementPanel canManage={activeRole === "MENTOR"} deletedGroupId={deletedGroupId} onGroupCreated={(group) => { setGroups((current) => [...current, group]); setActiveGroupId(String(group.id)); }} role={activeRole} />}
-        <div className="mb-5 flex min-w-0 gap-2 overflow-x-auto border-b border-slate-200">
-          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "daily" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("daily")} type="button">Күнүмдүк журнал</button>
-          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "modes" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("modes")} type="button"><Wifi size={16} />Келди / Онлайн / Жок</button>
-          {(activeRole === "ADMIN" || activeRole === "CURATOR") && <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "history" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("history")} type="button"><Archive size={16} />3 айлык архив</button>}
-          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "monthly-report" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("monthly-report")} type="button"><FileText size={16} />Айлык PDF</button>
-        </div>
-        {activeView === "history" ? <AttendanceHistory /> : activeView === "modes" ? <AttendanceModeSection canEdit={activeRole === "MENTOR"} initialDate={getToday()} onSaved={(msg) => typeof msg === "string" ? setToast({ type: "success", message: msg }) : setToast(msg)} students={visibleStudents} /> : activeView === "monthly-report" ? <MonthlyReportPanel role={activeRole} onToast={(t) => { setToast(t); window.setTimeout(() => setToast(null), 3500); }} /> : <>
-        <GroupTabs
-          activeGroupId={activeGroupId}
-          canDelete={canManageStudents}
-          groups={groups}
-          onAddGroup={canManageStudents ? () => document.getElementById("group-management-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }) : undefined}
-          onDeleteGroup={setGroupToDelete}
-          onGroupChange={setActiveGroupId}
-        />
-        <StatsHeader
-          presentCount={presentCount}
-          selectedDate={selectedDate}
-          totalCount={visibleStudents.length}
+
+        <RoleHeader
+          activeRole={activeRole}
+          user={user}
+          onLogout={() => {
+            window.localStorage.removeItem("attendance-token");
+            window.location.reload();
+          }}
         />
 
-        <div className="mb-5 flex flex-col gap-4">
-          <DateSelector
-            canEdit={canEditAttendance}
-            isSaving={isSaving}
-            onDateChange={handleDateChange}
-            onSave={handleSave}
-            onToday={handleToday}
-            selectedDate={selectedDate}
-          />
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:pb-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-              {canManageStudents && <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-xs font-extrabold text-white transition hover:bg-[#2b3a40] sm:w-auto" onClick={() => { setStudentToEdit(null); setIsAddModalOpen(true); }} type="button"><Plus size={16} />Окуучу кошуу</button>}
-              {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#d6dfd8] bg-white px-4 text-xs font-extrabold text-ink transition hover:border-forest hover:bg-[#f1f9f2] sm:w-auto" onClick={handleExportReport} type="button"><Download size={16} />PDF Отчет</button>}
-            </div>
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-            <DateSummary selectedDate={selectedDate} />
-            <StatsSummary presentCount={presentCount} totalCount={visibleStudents.length} />
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-5 flex items-start gap-3 rounded-md border border-[#f0c8c1] bg-[#fff4f1] px-4 py-3 text-sm text-[#b9504c]" role="alert">
-            <AlertCircle className="mt-0.5 shrink-0" size={18} />
-            <span>{error}</span>
+        {activeRole === "ADMIN" && (
+          <div
+            className="mb-5 rounded-md border border-[#c6ddc8] bg-[#edf5ee] px-4 py-3 text-sm font-extrabold text-forest"
+            role="status"
+          >
+            Режим наблюдения (Администратор)
           </div>
         )}
 
-        <div className="relative">
-          {isLoading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/75 backdrop-blur-[1px]">
-              <RefreshCw className="animate-spin text-forest" size={26} />
-              <span className="sr-only">Маалымат жүктөлүүдө</span>
-            </div>
-          )}
-          <AttendanceTable
-            attendanceMap={attendanceMap}
-            onToggle={handleToggle}
-            selectedDate={selectedDate}
-            students={visibleStudents}
-            canEdit={canEditAttendance}
-            canManageStudents={canManageStudents}
-            onDelete={setStudentToDelete}
-            onEdit={(student) => { setStudentToEdit(student); setIsAddModalOpen(true); }}
+        {(activeRole === "ADMIN" || activeRole === "CURATOR") && (
+          <UserRolePanel role={activeRole} />
+        )}
+        {(activeRole === "ADMIN" || activeRole === "CURATOR") && (
+          <MentorWorkspace role={activeRole} />
+        )}
+        {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && (
+          <GroupManagementPanel
+            canManage={activeRole === "MENTOR"}
+            deletedGroupId={deletedGroupId}
+            onGroupCreated={(group) => {
+              setGroups((prev) => [...prev, group]);
+              setActiveGroupId(String(group.id));
+            }}
+            role={activeRole}
           />
+        )}
+
+        {/* ── Tab bar ─────────────────────────────────────────────────────── */}
+        <div className="mb-5 flex min-w-0 gap-1 overflow-x-auto border-b border-slate-200">
+          {[
+            { id: "daily", label: "Журнал", icon: null },
+            ...(activeRole === "ADMIN" || activeRole === "CURATOR"
+              ? [{ id: "history", label: "3 айлык архив", icon: Archive }]
+              : []),
+            { id: "monthly-report", label: "Айлык PDF", icon: FileText },
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-extrabold transition ${
+                activeView === id
+                  ? "border-[#FF6B00] text-[#FF6B00]"
+                  : "border-transparent text-muted hover:text-ink"
+              }`}
+              onClick={() => setActiveView(id)}
+              type="button"
+            >
+              {Icon && <Icon size={15} />}
+              {label}
+            </button>
+          ))}
         </div>
-        </>}
+
+        {/* ── View routing ─────────────────────────────────────────────────── */}
+
+        {activeView === "history" && <AttendanceHistory />}
+
+        {activeView === "monthly-report" && (
+          <MonthlyReportPanel
+            role={activeRole}
+            onToast={showToast}
+          />
+        )}
+
+        {activeView === "daily" && (
+          <>
+            {/* Group filter tabs */}
+            <GroupTabs
+              activeGroupId={activeGroupId}
+              canDelete={canManageStudents}
+              groups={groups}
+              onAddGroup={
+                canManageStudents
+                  ? () =>
+                      document
+                        .getElementById("group-management-panel")
+                        ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                  : undefined
+              }
+              onDeleteGroup={setGroupToDelete}
+              onGroupChange={setActiveGroupId}
+            />
+
+            {/* Page title */}
+            <StatsHeader
+              presentCount={presentCount}
+              selectedDate={selectedDate}
+              totalCount={visibleStudents.length}
+            />
+
+            {/* Error banner */}
+            {error && (
+              <div
+                className="mb-5 flex items-start gap-3 rounded-md border border-[#f0c8c1] bg-[#fff4f1] px-4 py-3 text-sm text-[#b9504c]"
+                role="alert"
+              >
+                <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Loading overlay (initial load only) */}
+            <div className="relative">
+              {isLoading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/75 backdrop-blur-[1px]">
+                  <RefreshCw className="animate-spin text-[#FF6B00]" size={26} />
+                  <span className="sr-only">Маалымат жүктөлүүдө</span>
+                </div>
+              )}
+
+              {/* ── The unified daily journal ─────────────────────────── */}
+              <DailyJournal
+                students={visibleStudents}
+                attendanceRecords={attendanceRecords}
+                canEdit={canEditAttendance}
+                canManageStudents={canManageStudents}
+                selectedDate={selectedDate}
+                onDateChange={handleDateChange}
+                onToday={handleToday}
+                onEdit={(student) => {
+                  setStudentToEdit(student);
+                  setIsAddModalOpen(true);
+                }}
+                onDelete={setStudentToDelete}
+                onAddStudent={() => {
+                  setStudentToEdit(null);
+                  setIsAddModalOpen(true);
+                }}
+                onExportPdf={handleExportPdf}
+                onToast={showToast}
+                isLoading={isLoading}
+              />
+            </div>
+          </>
+        )}
+
       </div>
+
+      {/* ── Modals & overlays ──────────────────────────────────────────────── */}
 
       <AddStudentModal
         defaultGroupId={activeGroupId === "all" ? "" : activeGroupId}
@@ -366,34 +460,87 @@ export default function App() {
       />
 
       {studentToDelete && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-ink/40 px-4" role="dialog" aria-modal="true" aria-labelledby="delete-student-title">
+        <div
+          aria-labelledby="delete-student-title"
+          aria-modal="true"
+          className="fixed inset-0 z-30 flex items-center justify-center bg-ink/40 px-4"
+          role="dialog"
+        >
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h2 className="font-display text-lg font-bold text-ink" id="delete-student-title">Окуучуну өчүрүү</h2>
-            <p className="mt-3 text-sm leading-6 text-muted">Чын эле {studentToDelete.full_name} тизмеден өчүрүүнү каалайсызбы?</p>
+            <h2 className="font-display text-lg font-bold text-ink" id="delete-student-title">
+              Окуучуну өчүрүү
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Чын эле <strong>{studentToDelete.full_name}</strong> тизмеден өчүрүүнү каалайсызбы?
+            </p>
             <div className="mt-6 flex justify-end gap-3">
-              <button className="rounded-md border border-[#d6dfd8] px-4 py-2 text-sm font-bold text-ink transition hover:bg-[#f7faf7]" disabled={isDeletingStudent} onClick={() => setStudentToDelete(null)} type="button">Жок / Жабуу</button>
-              <button className="rounded-md bg-[#b9504c] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#9f403d] disabled:cursor-not-allowed disabled:opacity-60" disabled={isDeletingStudent} onClick={handleDeleteStudent} type="button">{isDeletingStudent ? "Өчүрүлүүдө..." : "Ооба, өчүрүү"}</button>
+              <button
+                className="rounded-md border border-[#d6dfd8] px-4 py-2 text-sm font-bold text-ink transition hover:bg-[#f7faf7]"
+                disabled={isDeletingStudent}
+                onClick={() => setStudentToDelete(null)}
+                type="button"
+              >
+                Жок / Жабуу
+              </button>
+              <button
+                className="rounded-md bg-[#b9504c] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#9f403d] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isDeletingStudent}
+                onClick={handleDeleteStudent}
+                type="button"
+              >
+                {isDeletingStudent ? "Өчүрүлүүдө..." : "Ооба, өчүрүү"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {groupToDelete && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-ink/40 px-4" role="dialog" aria-modal="true" aria-labelledby="delete-group-title">
+        <div
+          aria-labelledby="delete-group-title"
+          aria-modal="true"
+          className="fixed inset-0 z-30 flex items-center justify-center bg-ink/40 px-4"
+          role="dialog"
+        >
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h2 className="font-display text-lg font-bold text-ink" id="delete-group-title">Тайпаны өчүрүү</h2>
-            <p className="mt-3 text-sm leading-6 text-muted">Чын эле бул тайпаны жана анын ичиндеги окуучуларды өчүрүүнү каалайсызбы?</p>
+            <h2 className="font-display text-lg font-bold text-ink" id="delete-group-title">
+              Тайпаны өчүрүү
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Чын эле бул тайпаны жана анын ичиндеги окуучуларды өчүрүүнү каалайсызбы?
+            </p>
             <p className="mt-2 text-sm font-bold text-ink">{groupToDelete.name}</p>
             <div className="mt-6 flex justify-end gap-3">
-              <button className="rounded-md border border-[#d6dfd8] px-4 py-2 text-sm font-bold text-ink transition hover:bg-[#f7faf7]" disabled={isDeletingGroup} onClick={() => setGroupToDelete(null)} type="button">Жок / Жабуу</button>
-              <button className="rounded-md bg-[#b9504c] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#9f403d] disabled:cursor-not-allowed disabled:opacity-60" disabled={isDeletingGroup} onClick={handleDeleteGroup} type="button">{isDeletingGroup ? "Өчүрүлүүдө..." : "Ооба, өчүрүү"}</button>
+              <button
+                className="rounded-md border border-[#d6dfd8] px-4 py-2 text-sm font-bold text-ink transition hover:bg-[#f7faf7]"
+                disabled={isDeletingGroup}
+                onClick={() => setGroupToDelete(null)}
+                type="button"
+              >
+                Жок / Жабуу
+              </button>
+              <button
+                className="rounded-md bg-[#b9504c] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#9f403d] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isDeletingGroup}
+                onClick={handleDeleteGroup}
+                type="button"
+              >
+                {isDeletingGroup ? "Өчүрүлүүдө..." : "Ооба, өчүрүү"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {toast && (
-        <div className={`fixed bottom-5 right-5 z-20 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-md border px-4 py-3 text-sm font-bold shadow-lg ${toast.type === "success" ? "border-[#c7e3ce] bg-[#f1f9f2] text-forest" : "border-[#f0c8c1] bg-[#fff4f1] text-[#b9504c]"}`} role="status">
+        <div
+          className={`fixed bottom-5 right-5 z-20 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-md border px-4 py-3 text-sm font-bold shadow-lg ${
+            toast.type === "success"
+              ? "border-[#c7e3ce] bg-[#f1f9f2] text-forest"
+              : "border-[#f0c8c1] bg-[#fff4f1] text-[#b9504c]"
+          }`}
+          role="status"
+        >
           <CheckCircle2 size={18} />
           <span>{toast.message}</span>
         </div>
