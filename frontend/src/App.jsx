@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Archive, CheckCircle2, Download, Plus, RefreshCw, Wifi } from "lucide-react";
+import { AlertCircle, Archive, CheckCircle2, Download, FileText, Plus, RefreshCw, Wifi } from "lucide-react";
 import { fetchMe } from "./api/authApi";
 import AuthPanel from "./components/AuthPanel";
 import UserRolePanel from "./components/UserRolePanel";
@@ -15,6 +15,7 @@ import GroupManagementPanel from "./components/GroupManagementPanel";
 import GroupTabs from "./components/GroupTabs";
 import MentorWorkspace from "./components/MentorWorkspace";
 import AccountantDashboard from "./components/AccountantDashboard";
+import MonthlyReportPanel from "./components/MonthlyReportPanel";
 import { fetchGroups } from "./api/attendanceApi";
 
 function getToday() {
@@ -286,10 +287,11 @@ export default function App() {
         {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <GroupManagementPanel canManage={activeRole === "MENTOR"} deletedGroupId={deletedGroupId} onGroupCreated={(group) => { setGroups((current) => [...current, group]); setActiveGroupId(String(group.id)); }} role={activeRole} />}
         <div className="mb-5 flex min-w-0 gap-2 overflow-x-auto border-b border-slate-200">
           <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "daily" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("daily")} type="button">Күнүмдүк журнал</button>
-          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "modes" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("modes")} type="button"><Wifi size={16} />Формат боюнча катышуу</button>
+          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "modes" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("modes")} type="button"><Wifi size={16} />Келди / Онлайн / Жок</button>
           {(activeRole === "ADMIN" || activeRole === "CURATOR") && <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "history" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("history")} type="button"><Archive size={16} />3 айлык архив</button>}
+          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "monthly-report" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("monthly-report")} type="button"><FileText size={16} />Айлык PDF</button>
         </div>
-        {activeView === "history" ? <AttendanceHistory /> : activeView === "modes" ? <AttendanceModeSection canEdit={activeRole === "MENTOR"} initialDate={getToday()} onSaved={(message) => setToast({ type: "success", message })} students={visibleStudents} /> : <>
+        {activeView === "history" ? <AttendanceHistory /> : activeView === "modes" ? <AttendanceModeSection canEdit={activeRole === "MENTOR"} initialDate={getToday()} onSaved={(msg) => typeof msg === "string" ? setToast({ type: "success", message: msg }) : setToast(msg)} students={visibleStudents} /> : activeView === "monthly-report" ? <MonthlyReportPanel role={activeRole} onToast={(t) => { setToast(t); window.setTimeout(() => setToast(null), 3500); }} /> : <>
         <GroupTabs
           activeGroupId={activeGroupId}
           canDelete={canManageStudents}

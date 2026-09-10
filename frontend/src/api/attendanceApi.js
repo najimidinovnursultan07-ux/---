@@ -89,3 +89,27 @@ export async function fetchSalaryRows(startDate, endDate) {
   });
   return data;
 }
+
+export async function downloadMentorMonthlyPdf(year, month, mentorId) {
+  const response = await axiosInstance.get("/attendance/mentor-monthly-pdf/", {
+    params: {
+      year,
+      month,
+      ...(mentorId ? { mentor_id: mentorId } : {}),
+    },
+    responseType: "blob",
+  });
+  return response.data;
+}
+
+export async function downloadCuratorMonthlyPdf(year, month, mentorId) {
+  const response = await axiosInstance.get("/attendance/curator-monthly-pdf/", {
+    params: {
+      year,
+      month,
+      ...(mentorId ? { mentor_id: mentorId } : {}),
+    },
+    responseType: "blob",
+  });
+  return response.data;
+}
