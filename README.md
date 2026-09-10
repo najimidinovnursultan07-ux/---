@@ -84,7 +84,7 @@ The destructive reset requires typing `RESET` interactively. For an explicit dep
 python manage.py reset_data --yes
 ```
 
-This removes attendance, students, groups, and Mentor/Curator users inside one database transaction. Users with `is_superuser=True` or an `ADMIN` profile are preserved, including their passwords and active sessions.
+This removes attendance, students, and groups and deactivates Mentor/Curator users inside one database transaction. Users with `is_superuser=True` or an `ADMIN` profile are preserved, including their passwords and active sessions.
 
 The API provides:
 
@@ -98,4 +98,4 @@ The API provides:
 
 The `authentication` app provides `UserProfile` roles: `ADMIN`, `MENTOR`, and `CURATOR`. In the local role-switcher UI, the selected role is sent as `X-User-Role`; this development-only header is accepted only while `DEBUG=True`. Production deployments should use authenticated Django users with a related `UserProfile` and set `DEBUG=False`.
 
-Student writes require `MENTOR`; attendance bulk writes require `MENTOR`; reports require `ADMIN`, `CURATOR`, or `MENTOR`. Student `DELETE` is implemented as a soft-delete by setting `is_active=False`. Admin dashboards are observational, while Admin user deletion is available through the protected user-management API.
+Student writes require `MENTOR`; attendance bulk writes require `MENTOR`; reports require `ADMIN`, `CURATOR`, or `MENTOR`. Student and user `DELETE` operations are implemented as soft-deletes by setting `is_active=False`. Admin dashboards are observational, while Admin user deactivation is available through the protected user-management API.

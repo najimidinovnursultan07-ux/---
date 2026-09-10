@@ -106,5 +106,6 @@ class DeleteUserView(APIView):
         if target.id == request.user.id or target.is_superuser or target_role not in {UserProfile.Role.CURATOR, UserProfile.Role.MENTOR}:
             return Response({'detail': 'Бул аккаунтту өчүрүүгө болбойт.'}, status=status.HTTP_403_FORBIDDEN)
 
-        target.delete()
+        target.is_active = False
+        target.save(update_fields=['is_active'])
         return Response(status=status.HTTP_204_NO_CONTENT)

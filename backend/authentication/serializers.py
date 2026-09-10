@@ -83,7 +83,7 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        email = attrs['email'].lower()
+        email = attrs['email'].strip()
         user = User.objects.filter(email__iexact=email).first()
         if not user or not user.check_password(attrs['password']):
             raise serializers.ValidationError('Email же сырсөз туура эмес.')

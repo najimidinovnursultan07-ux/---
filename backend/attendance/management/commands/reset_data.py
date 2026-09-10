@@ -10,7 +10,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = 'Safely reset attendance data and remove Mentor/Curator accounts while preserving Admin accounts.'
+    help = 'Safely reset attendance data and deactivate Mentor/Curator accounts while preserving Admin accounts.'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -45,7 +45,7 @@ class Command(BaseCommand):
 
         if not options['yes']:
             confirmation = input(
-                'This permanently deletes attendance, students, groups, and Mentor/Curator users. '
+                'This permanently deletes attendance, students, and groups and deactivates Mentor/Curator users. '
                 'Type RESET to continue: '
             ).strip()
             if confirmation != 'RESET':
@@ -55,7 +55,7 @@ class Command(BaseCommand):
             Attendance.objects.all().delete()
             Student.objects.all().delete()
             StudentGroup.objects.all().delete()
-            user_queryset.delete()
+            user_queryset.update(is_active=False)
 
         self.stdout.write(
             self.style.SUCCESS(

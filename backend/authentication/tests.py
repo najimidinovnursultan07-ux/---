@@ -28,7 +28,7 @@ class AuthenticationApiTests(APITestCase):
         self.assertEqual(login_response.status_code, 200)
         self.assertEqual(login_response.data['user']['role'], UserProfile.Role.ACCOUNTANT)
 
-    def test_create_accountant_command_updates_existing_account_without_duplicate(self):
+    def test_create_accountant_command_does_not_restore_inactive_account(self):
         User = get_user_model()
         accountant = User.objects.create_user(
             username='accountant@okurmen.com',
@@ -40,13 +40,13 @@ class AuthenticationApiTests(APITestCase):
 
         call_command('create_accountant')
 
-        self.assertEqual(User.objects.filter(email='accountant@gmail.com').count(), 1)
-        self.assertEqual(User.objects.filter(email='accountant@okurmen.com').count(), 0)
+        self.assertEqual(User.objects.filter(email='accountant@gmail.com').count(), 0)
+        self.assertEqual(User.objects.filter(email='accountant@okurmen.com').count(), 1)
         accountant.refresh_from_db()
-        self.assertTrue(accountant.is_active)
-        self.assertTrue(accountant.check_password('Accountant123!'))
-        self.assertEqual(accountant.role_profile.role, UserProfile.Role.ACCOUNTANT)
-        self.assertTrue(accountant.role_profile.is_approved)
+        self.assertFalse(accountant.is_active)
+        self.assertTrue(accountant.check_password('existing-password'))
+        self.assertEqual(accountant.role_profile.role, UserProfile.Role.USER)
+        self.assertFalse(accountant.role_profile.is_approved)
     def test_register_returns_field_errors(self):
         response = self.client.post('/api/auth/register/', {
             'full_name': ' ',
@@ -83,6 +83,25 @@ class AuthenticationApiTests(APITestCase):
         self.assertEqual(response.data['user']['role'], UserProfile.Role.USER)
         self.assertFalse(response.data['user']['is_approved'])
 
+        user = get_user_model().objects.get(email='new@example.com')
+        self.assertTrue(user.check_password('password123'))
+        self.assertNotEqual(user.password, 'password123')
+
+    def test_login_trims_email_before_case_insensitive_lookup(self):
+        User = get_user_model()
+        User.objects.create_user(
+            username='login@example.com',
+            email='login@example.com',
+            password='password123',
+        )
+
+        response = self.client.post('/api/auth/login/', {
+            'email': '  LOGIN@EXAMPLE.COM  ',
+            'password': 'password123',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+
     def test_admin_can_delete_curator_or_mentor_account(self):
         User = get_user_model()
         admin = User.objects.create_user(username='admin@example.com', password='password123')
@@ -94,7 +113,8 @@ class AuthenticationApiTests(APITestCase):
         response = self.client.delete(f'/api/users/{mentor.id}/')
 
         self.assertEqual(response.status_code, 204)
-        self.assertFalse(User.objects.filter(id=mentor.id).exists())
+        mentor.refresh_from_db()
+        self.assertFalse(mentor.is_active)
 
     def test_admin_can_update_user_role(self):
         User = get_user_model()
@@ -147,7 +167,8 @@ class AuthenticationApiTests(APITestCase):
         self.assertTrue(admin.is_active)
         self.assertTrue(admin.check_password('AdminPassword123!'))
         self.assertEqual(admin_profile.role, UserProfile.Role.ADMIN)
-        self.assertFalse(User.objects.filter(id=mentor.id).exists())
+        mentor.refresh_from_db()
+        self.assertFalse(mentor.is_active)
         self.assertFalse(Attendance.objects.exists())
         self.assertFalse(Student.objects.exists())
         self.assertFalse(StudentGroup.objects.exists())
