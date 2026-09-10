@@ -61,7 +61,7 @@ export default function AuthPanel({ onAuthenticated }) {
         <div className="mb-3"><input aria-describedby={fieldErrors.email ? "email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} className={inputClass("email")} name="email" onChange={updateField} placeholder="Email" required type="email" value={form.email} />{fieldErrors.email && <p className="mt-1 text-xs font-semibold text-[#b9504c]" id="email-error">{fieldErrors.email}</p>}</div>
         <div className="mb-4">
           <div className="relative">
-            <input aria-describedby={fieldErrors.password ? "password-error" : undefined} aria-invalid={Boolean(fieldErrors.password)} className={`${inputClass("password")} pr-11`} name="password" onChange={updateField} placeholder={isRegistering ? "Сырсөз" : "Сырсөз же админ код"} required type={isPasswordVisible ? "text" : "password"} value={form.password} />
+            <input aria-describedby={fieldErrors.password ? "password-error" : undefined} aria-invalid={Boolean(fieldErrors.password)} className={`${inputClass("password")} pr-11`} name="password" onChange={updateField} placeholder="Сырсөз" required type={isPasswordVisible ? "text" : "password"} value={form.password} />
             <button aria-label={isPasswordVisible ? "Сырсөздү жашыруу" : "Сырсөздү көрсөтүү"} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted hover:bg-canvas hover:text-ink" onClick={() => setIsPasswordVisible((visible) => !visible)} type="button">
               {isPasswordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -75,7 +75,6 @@ export default function AuthPanel({ onAuthenticated }) {
         <button className="mt-4 w-full text-sm font-bold text-forest" onClick={toggleMode} type="button">
           {isRegistering ? "Аккаунтуңуз барбы? Кирүү" : "Жаңы аккаунт түзүү"}
         </button>
-        {!isRegistering && <p className="mt-5 text-xs leading-5 text-muted">Администратор: admin@gmail.com жана AdminSecretCode123!</p>}
       </form>
     </main>
   );

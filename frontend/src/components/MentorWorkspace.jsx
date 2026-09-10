@@ -74,13 +74,13 @@ export default function MentorWorkspace({ role }) {
   const selectedMentor = mentors.find((mentor) => String(mentor.id) === selectedMentorId);
 
   return (
-    <section className="mb-6 rounded-lg border border-[#dfe8df] bg-white p-5 shadow-panel">
+    <section className="mb-6 min-w-0 rounded-lg border border-[#dfe8df] bg-white p-4 shadow-panel sm:p-5">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="mb-1 text-[11px] font-extrabold uppercase tracking-wider text-coral-dark">МОНИТОРИНГ</p>
           <h2 className="font-display text-xl font-bold text-ink">Менторлор жана Тайпалар</h2>
         </div>
-        <label className="flex min-w-60 items-center gap-2 text-xs font-extrabold text-muted">
+        <label className="flex w-full min-w-0 items-center gap-2 text-xs font-extrabold text-muted sm:w-auto sm:min-w-60">
           <Users size={16} className="text-forest" />
           <select className="h-10 flex-1 rounded-md border border-[#d6dfd8] bg-white px-3 text-sm font-bold text-ink" onChange={(event) => setSelectedMentorId(event.target.value)} value={selectedMentorId}>
             <option value="">Менторду тандаңыз</option>

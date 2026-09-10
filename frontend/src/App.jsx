@@ -278,7 +278,7 @@ export default function App() {
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && <UserRolePanel role={activeRole} />}
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && <MentorWorkspace role={activeRole} />}
         {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <GroupManagementPanel canManage={activeRole === "MENTOR"} deletedGroupId={deletedGroupId} onGroupCreated={(group) => { setGroups((current) => [...current, group]); setActiveGroupId(String(group.id)); }} role={activeRole} />}
-        <div className="mb-5 flex gap-2 border-b border-[#dfe8df]">
+        <div className="mb-5 flex min-w-0 gap-2 overflow-x-auto border-b border-[#dfe8df]">
           <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "daily" ? "border-forest text-forest" : "border-transparent text-muted"}`} onClick={() => setActiveView("daily")} type="button">Күнүмдүк журнал</button>
           <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "modes" ? "border-forest text-forest" : "border-transparent text-muted"}`} onClick={() => setActiveView("modes")} type="button"><Wifi size={16} />Формат боюнча катышуу</button>
           {(activeRole === "ADMIN" || activeRole === "CURATOR") && <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "history" ? "border-forest text-forest" : "border-transparent text-muted"}`} onClick={() => setActiveView("history")} type="button"><Archive size={16} />3 айлык архив</button>}
@@ -307,12 +307,12 @@ export default function App() {
             onToday={handleToday}
             selectedDate={selectedDate}
           />
-          <div className="flex flex-wrap items-center justify-between gap-3 sm:pb-2">
-            <div className="flex items-center gap-3">
-              {canManageStudents && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-ink px-4 text-xs font-extrabold text-white transition hover:bg-[#2b3a40]" onClick={() => { setStudentToEdit(null); setIsAddModalOpen(true); }} type="button"><Plus size={16} />Окуучу кошуу</button>}
-              {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <button className="inline-flex h-10 items-center gap-2 rounded-md border border-[#d6dfd8] bg-white px-4 text-xs font-extrabold text-ink transition hover:border-forest hover:bg-[#f1f9f2]" onClick={handleExportReport} type="button"><Download size={16} />PDF Отчет</button>}
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:pb-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              {canManageStudents && <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-xs font-extrabold text-white transition hover:bg-[#2b3a40] sm:w-auto" onClick={() => { setStudentToEdit(null); setIsAddModalOpen(true); }} type="button"><Plus size={16} />Окуучу кошуу</button>}
+              {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#d6dfd8] bg-white px-4 text-xs font-extrabold text-ink transition hover:border-forest hover:bg-[#f1f9f2] sm:w-auto" onClick={handleExportReport} type="button"><Download size={16} />PDF Отчет</button>}
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <DateSummary selectedDate={selectedDate} />
             <StatsSummary presentCount={presentCount} totalCount={visibleStudents.length} />
             </div>

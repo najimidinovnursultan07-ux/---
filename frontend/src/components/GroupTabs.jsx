@@ -2,7 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 export default function GroupTabs({ canDelete, groups, activeGroupId, onAddGroup, onDeleteGroup, onGroupChange }) {
   return (
-    <div className="mb-5 overflow-x-auto border-b border-[#dfe8df]">
+    <div className="mb-5 min-w-0 overflow-x-auto border-b border-[#dfe8df]">
       <div className="flex min-w-max items-center gap-1" role="tablist" aria-label="Тайпалар">
         <button
           aria-selected={activeGroupId === "all"}

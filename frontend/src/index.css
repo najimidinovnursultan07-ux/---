@@ -15,7 +15,13 @@
 body {
   min-width: 320px;
   margin: 0;
+  overflow-x: hidden;
   background: radial-gradient(circle at 82% 0%, #e7f1e6 0, transparent 31rem), #f2f5f0;
+}
+
+#root {
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 button, input {
