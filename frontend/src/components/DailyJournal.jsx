@@ -19,6 +19,7 @@ import {
   MonitorSmartphone,
   Pencil,
   RotateCcw,
+  Save,
   Search,
   Trash2,
   UserRound,
@@ -230,6 +231,8 @@ export default function DailyJournal({
   const debounceRef = useRef({});
   // Ack timers: studentId → timeoutId
   const ackRef = useRef({});
+  // "Save all" button state
+  const [isSavingAll, setIsSavingAll] = useState(false);
 
   // Build statusMap whenever records or students change
   useEffect(() => {
@@ -300,6 +303,36 @@ export default function DailyJournal({
       onToast?.({ type: "error", message: err?.response?.data?.detail || "Жалпы сактоо ишке ашкан жок." });
     });
   }
+
+  // ── Save all: flush every student's current status at once ─────────────────
+  const handleSaveAll = useCallback(async () => {
+    if (!canEdit || !students.length || isSavingAll) return;
+    setIsSavingAll(true);
+    try {
+      const today = getToday();
+      const bulkRecords = students.map((s) => ({
+        student_id: s.id,
+        is_present: (statusMap[s.id] ?? "ABSENT") !== "ABSENT",
+      }));
+      await saveAttendance(today, bulkRecords);
+
+      const presentStudents = students.filter((s) => (statusMap[s.id] ?? "ABSENT") !== "ABSENT");
+      if (presentStudents.length) {
+        await saveAttendanceModes(
+          today,
+          presentStudents.map((s) => ({
+            student_id: s.id,
+            attendance_type: statusMap[s.id],
+          })),
+        );
+      }
+      onToast?.({ type: "success", message: "Журнал ийгиликтүү сакталды." });
+    } catch (err) {
+      onToast?.({ type: "error", message: err?.response?.data?.detail || "Сактоо ишке ашкан жок." });
+    } finally {
+      setIsSavingAll(false);
+    }
+  }, [canEdit, isSavingAll, students, statusMap, onToast]);
 
   // ── Filtered list ───────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -431,6 +464,22 @@ export default function DailyJournal({
             >
               <Users size={13} />
               <span className="hidden sm:inline">Окуучу кошуу</span>
+            </button>
+          )}
+          {/* ── Save All button — Mentor only, today only ── */}
+          {canEdit && isToday && (
+            <button
+              className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-[11px] font-extrabold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSavingAll || !students.length}
+              onClick={handleSaveAll}
+              style={{ background: "#FF6B00" }}
+              title="Бардык статустарды сактоо"
+              type="button"
+            >
+              {isSavingAll
+                ? <LoaderCircle className="animate-spin" size={13} />
+                : <Save size={13} />}
+              <span>Сактоо</span>
             </button>
           )}
           <button
