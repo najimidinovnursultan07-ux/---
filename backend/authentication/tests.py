@@ -11,6 +11,34 @@ from attendance.models import Attendance, Student, StudentGroup
 
 
 class AuthenticationApiTests(APITestCase):
+    def test_create_accountant_command_creates_login_ready_account(self):
+        call_command('create_accountant')
+
+        User = get_user_model()
+        accountant = User.objects.get(email='accountant@okurmen.com')
+        self.assertTrue(accountant.is_active)
+        self.assertTrue(accountant.check_password('Accountant123!'))
+        self.assertEqual(accountant.role_profile.role, UserProfile.Role.ACCOUNTANT)
+        self.assertTrue(accountant.role_profile.is_approved)
+
+    def test_create_accountant_command_updates_existing_account_without_duplicate(self):
+        User = get_user_model()
+        accountant = User.objects.create_user(
+            username='accountant@okurmen.com',
+            email='accountant@okurmen.com',
+            password='existing-password',
+            is_active=False,
+        )
+        UserProfile.objects.create(user=accountant, role=UserProfile.Role.USER, is_approved=False)
+
+        call_command('create_accountant')
+
+        self.assertEqual(User.objects.filter(email='accountant@okurmen.com').count(), 1)
+        accountant.refresh_from_db()
+        self.assertTrue(accountant.is_active)
+        self.assertTrue(accountant.check_password('existing-password'))
+        self.assertEqual(accountant.role_profile.role, UserProfile.Role.ACCOUNTANT)
+        self.assertTrue(accountant.role_profile.is_approved)
     def test_register_returns_field_errors(self):
         response = self.client.post('/api/auth/register/', {
             'full_name': ' ',
