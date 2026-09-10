@@ -11,10 +11,11 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     role = serializers.CharField(source='role_profile.role', read_only=True)
     is_approved = serializers.BooleanField(source='role_profile.is_approved', read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'email', 'role', 'is_approved']
+        fields = ['id', 'full_name', 'email', 'role', 'is_approved', 'is_superuser']
 
     def get_full_name(self, user):
         return user.get_full_name()

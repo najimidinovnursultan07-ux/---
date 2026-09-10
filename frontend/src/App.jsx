@@ -320,7 +320,7 @@ export default function App() {
         )}
 
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && (
-          <UserRolePanel role={activeRole} />
+          <UserRolePanel role={activeRole} user={user} />
         )}
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && (
           <MentorWorkspace role={activeRole} />
