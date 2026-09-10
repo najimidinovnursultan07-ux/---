@@ -59,7 +59,8 @@ export default function App() {
   const [activeView, setActiveView] = useState("daily");
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const canEditAttendance = activeRole === "MENTOR" && selectedDate === getToday();
+  // MENTOR and ADMIN can edit attendance for any date
+  const canEditAttendance = activeRole === "MENTOR" || activeRole === "ADMIN";
   const canManageStudents = activeRole === "MENTOR";
 
   const visibleStudents = useMemo(

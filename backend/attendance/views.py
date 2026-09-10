@@ -145,13 +145,13 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 
 	def get_permissions(self):
 		if self.action == 'save_bulk':
-			return [IsMentor()]
+			return [IsMentorOrAdmin()]
 		if self.action == 'report':
 			return [IsCurator()]
 		if self.action in ('report_pdf', 'mentor_monthly_pdf', 'curator_monthly_pdf'):
 			return [IsApprovedUser()]
 		if self.action == 'save_mode':
-			return [IsMentor()]
+			return [IsMentorOrAdmin()]
 		if self.action == 'history':
 			return [IsCurator()]
 		return [IsApprovedUser()]
@@ -173,7 +173,11 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		return queryset.order_by('student__full_name')
 
 	def _assert_mentor_students(self, records):
-		if request_role(self.request) == 'MENTOR' and any(
+		role = request_role(self.request)
+		# ADMIN can edit any student's attendance
+		if role == 'ADMIN':
+			return None
+		if role == 'MENTOR' and any(
 			not record['student'].group_id or record['student'].group.mentor_id != self.request.user.id
 			for record in records
 		):
@@ -181,14 +185,16 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		return None
 
 	def _prepare_day(self, selected_date):
+		"""Ensure Attendance rows exist for every active student on selected_date."""
 		today = timezone.localdate()
+		# Lock past days that are still unlocked (housekeeping)
 		Attendance.objects.filter(date__lt=today, is_locked=False).update(is_locked=True)
-		if selected_date == today:
-			students = Student.objects.filter(is_active=True)
-			Attendance.objects.bulk_create(
-				[Attendance(student=student, date=today) for student in students],
-				ignore_conflicts=True,
-			)
+		# Create default (absent) rows for all active students on the requested date
+		students = Student.objects.filter(is_active=True)
+		Attendance.objects.bulk_create(
+			[Attendance(student=student, date=selected_date) for student in students],
+			ignore_conflicts=True,
+		)
 
 	@action(detail=False, methods=['post'], url_path='save-bulk')
 	def save_bulk(self, request):
@@ -198,11 +204,10 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		if permission_response:
 			return permission_response
 
-		saved_records = []
 		selected_date = serializer.validated_data['date']
 		self._prepare_day(selected_date)
-		if selected_date != timezone.localdate():
-			return Response({'detail': 'Өткөн күндөр архивделип, өзгөртүүгө жабылган.'}, status=status.HTTP_409_CONFLICT)
+
+		saved_records = []
 		with transaction.atomic():
 			for record in serializer.validated_data['records']:
 				attendance, _ = Attendance.objects.update_or_create(
@@ -226,8 +231,6 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			return permission_response
 		selected_date = serializer.validated_data['date']
 		self._prepare_day(selected_date)
-		if selected_date != timezone.localdate():
-			return Response({'detail': 'Өткөн күндөр архивделип, өзгөртүүгө жабылган.'}, status=status.HTTP_409_CONFLICT)
 
 		saved_records = []
 		with transaction.atomic():

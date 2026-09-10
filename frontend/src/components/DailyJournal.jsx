@@ -207,7 +207,8 @@ export default function DailyJournal({
   const [search, setSearch]           = useState("");
 
   const isToday = selectedDate === getToday();
-  const canEditNow = canEdit && isToday;
+  // Editing is allowed on ANY date for MENTOR and ADMIN (canEdit comes from parent)
+  const canEditNow = canEdit;
 
   // ── Fetch attendance from server whenever date or students change ───────────
   useEffect(() => {
@@ -247,31 +248,28 @@ export default function DailyJournal({
     for (const s of students) next[s.id] = status;
     setStatusMap((prev) => ({ ...prev, ...next }));
     setIsDirty(true);
-  }
-
-  // ── Save All: single authoritative write to the backend ────────────────────
+  }  // ── Save All: single authoritative write to the backend ────────────────────
   const handleSaveAll = useCallback(async () => {
     if (!canEditNow || !students.length || isSavingAll) return;
     setIsSavingAll(true);
 
-    const today = getToday();
     const bulkRecords = students.map((s) => ({
       student_id: s.id,
       is_present: (statusMap[s.id] ?? "ABSENT") !== "ABSENT",
     }));
 
     try {
-      // 1) Save presence (is_present) for every student
-      await saveAttendance(today, bulkRecords);
+      // 1) Save presence for every student on the selected date
+      await saveAttendance(selectedDate, bulkRecords);
 
-      // 2) Save attendance_type (OFFLINE / ONLINE) for present students only
+      // 2) Save attendance_type for present students on the selected date
       const presentStudents = students.filter((s) => (statusMap[s.id] ?? "ABSENT") !== "ABSENT");
       if (presentStudents.length) {
         await saveAttendanceModes(
-          today,
+          selectedDate,
           presentStudents.map((s) => ({
             student_id: s.id,
-            attendance_type: statusMap[s.id], // "OFFLINE" or "ONLINE"
+            attendance_type: statusMap[s.id],
           })),
         );
       }
@@ -284,7 +282,7 @@ export default function DailyJournal({
     } finally {
       setIsSavingAll(false);
     }
-  }, [canEditNow, isSavingAll, students, statusMap, onToast]);
+  }, [canEditNow, isSavingAll, students, statusMap, selectedDate, onToast]);
 
   // ── Filtered + counted ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -333,7 +331,6 @@ export default function DailyJournal({
             <input
               className="h-9 rounded-md border border-[#2a3a4a] bg-[#162232] px-3 text-sm font-semibold text-white outline-none focus:border-[#FF6B00]"
               id="journal-date"
-              max={getToday()}
               onChange={(e) => onDateChange(e.target.value)}
               type="date"
               value={selectedDate}
