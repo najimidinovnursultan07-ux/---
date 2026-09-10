@@ -82,3 +82,10 @@ export async function downloadAttendancePdf(date) {
   });
   return response.data;
 }
+
+export async function fetchSalaryRows(startDate, endDate) {
+  const { data } = await axiosInstance.get("/finance/salaries/", {
+    params: { start_date: startDate, end_date: endDate },
+  });
+  return data;
+}

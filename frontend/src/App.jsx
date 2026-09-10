@@ -14,6 +14,7 @@ import AttendanceModeSection from "./components/AttendanceModeSection";
 import GroupManagementPanel from "./components/GroupManagementPanel";
 import GroupTabs from "./components/GroupTabs";
 import MentorWorkspace from "./components/MentorWorkspace";
+import AccountantDashboard from "./components/AccountantDashboard";
 import { fetchGroups } from "./api/attendanceApi";
 
 function getToday() {
@@ -236,6 +237,10 @@ export default function App() {
         if (!isMounted) return;
         setUser(currentUser);
         setActiveRole(currentUser.effective_role || currentUser.role || "USER");
+        if ((currentUser.effective_role || currentUser.role) === "ACCOUNTANT") {
+          if (window.location.pathname !== "/accountant/dashboard") window.history.replaceState({}, "", "/accountant/dashboard");
+          return;
+        }
         const loadedGroups = ["ADMIN", "CURATOR", "MENTOR"].includes(currentUser.effective_role || currentUser.role)
           ? await fetchGroups()
           : [];
@@ -266,6 +271,7 @@ export default function App() {
 
   if (isAuthLoading) return <div className="flex min-h-screen items-center justify-center bg-slate-50"><img alt="Окурмэн жүктөлүүдө" className="h-24 w-24 rounded-full object-contain animate-pulse" src="/logo.jpg" /></div>;
   if (!user) return <AuthPanel onAuthenticated={handleAuthenticated} />;
+  if (activeRole === "ACCOUNTANT") return <AccountantDashboard user={user} onLogout={() => { window.localStorage.removeItem("attendance-token"); window.location.replace("/"); }} />;
   if (!user.is_approved && user.role !== "ADMIN") {
     return <main className="flex min-h-screen items-center justify-center px-5"><div className="max-w-lg rounded-lg border border-[#eadcc3] bg-[#fffaf0] p-8 text-center shadow-sm"><h1 className="mb-3 font-display text-xl font-bold text-ink">Аккаунт күтүп жатат</h1><p className="text-sm leading-6 text-[#765f38]">Аккаунтуңузга уруксат бериле элек. Администратор же Куратор ролуңузду бекитишин күтүңүз.</p><button className="mt-6 rounded-md bg-ink px-4 py-2 text-sm font-bold text-white" onClick={() => { window.localStorage.removeItem("attendance-token"); window.location.reload(); }} type="button">Чыгуу</button></div></main>;
   }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { changeUserRole, deleteUser, fetchUsers } from "../api/authApi";
 
-const roleLabels = { ADMIN: "Админ", CURATOR: "Куратор", MENTOR: "Ментор", USER: "Колдонуучу" };
+const roleLabels = { ADMIN: "Админ", ACCOUNTANT: "Бухгалтер", CURATOR: "Куратор", MENTOR: "Ментор", USER: "Колдонуучу" };
 
 export default function UserRolePanel({ role }) {
   const [users, setUsers] = useState([]);
@@ -55,6 +55,7 @@ export default function UserRolePanel({ role }) {
               <option value="USER">{roleLabels.USER}</option>
               {role === "ADMIN" && <>
                 <option value="ADMIN">{roleLabels.ADMIN}</option>
+                <option value="ACCOUNTANT">{roleLabels.ACCOUNTANT}</option>
                 <option value="CURATOR">{roleLabels.CURATOR}</option>
               </>}
               <option value="MENTOR">{roleLabels.MENTOR}</option>

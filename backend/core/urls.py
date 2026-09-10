@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from authentication.views import ChangeRoleView, DeleteUserView, UserListView
+from finance_views import SalaryListView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,5 +26,6 @@ urlpatterns = [
     path('api/users/', UserListView.as_view(), name='users-list'),
     path('api/users/<int:user_id>/change-role/', ChangeRoleView.as_view(), name='users-change-role'),
     path('api/users/<int:user_id>/', DeleteUserView.as_view(), name='users-delete'),
+    path('api/finance/salaries/', SalaryListView.as_view(), name='finance-salaries'),
     path('api/', include('attendance.urls')),
 ]

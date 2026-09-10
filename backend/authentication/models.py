@@ -5,6 +5,7 @@ from django.db import models
 class UserProfile(models.Model):
     class Role(models.TextChoices):
         ADMIN = 'ADMIN', 'Главный/Администратор'
+        ACCOUNTANT = 'ACCOUNTANT', 'Бухгалтер'
         MENTOR = 'MENTOR', 'Ментор'
         CURATOR = 'CURATOR', 'Куратор'
         USER = 'USER', 'Жөнөкөй колдонуучу'

@@ -155,3 +155,36 @@ class AttendanceApiTests(APITestCase):
 
 		self.assertEqual(student_response.status_code, 403)
 		self.assertEqual(group_response.status_code, 403)
+
+
+class FinanceSalaryApiTests(APITestCase):
+	def setUp(self):
+		User = get_user_model()
+		self.accountant = User.objects.create_user(username='accountant@example.com', password='password123')
+		UserProfile.objects.create(user=self.accountant, role=UserProfile.Role.ACCOUNTANT, is_approved=True)
+		self.mentor = User.objects.create_user(username='mentor-finance@example.com', password='password123', first_name='Айбек', last_name='Ментор')
+		UserProfile.objects.create(user=self.mentor, role=UserProfile.Role.MENTOR, is_approved=True)
+		self.group = StudentGroup.objects.create(name='Finance Group', mentor=self.mentor)
+		self.first_student = Student.objects.create(full_name='First Student', group=self.group)
+		self.second_student = Student.objects.create(full_name='Second Student', group=self.group)
+
+	def test_accountant_receives_salary_by_present_attendance(self):
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 1), is_present=True)
+		Attendance.objects.create(student=self.second_student, date=date(2026, 9, 1), is_present=False)
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 2), is_present=True)
+		self.client.force_authenticate(self.accountant)
+
+		response = self.client.get('/api/finance/salaries/?start_date=2026-09-01&end_date=2026-09-30')
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.data['rate'], 150)
+		self.assertEqual(response.data['rows'][0]['lessons_count'], 2)
+		self.assertEqual(response.data['rows'][0]['attendance_count'], 2)
+		self.assertEqual(response.data['rows'][0]['salary_amount'], 300)
+
+	def test_mentor_cannot_access_salary_endpoint(self):
+		self.client.force_authenticate(self.mentor)
+
+		response = self.client.get('/api/finance/salaries/')
+
+		self.assertEqual(response.status_code, 403)

@@ -19,6 +19,13 @@ class IsAdminUserRole(BasePermission):
         return request.user.is_authenticated and request_role(request) == UserProfile.Role.ADMIN
 
 
+class IsAccountantOrAdmin(BasePermission):
+    message = 'Бухгалтердин же администратордун уруксаты керек.'
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request_role(request) in {UserProfile.Role.ACCOUNTANT, UserProfile.Role.ADMIN}
+
+
 class IsMentorOrAdmin(BasePermission):
     message = 'Ментор же администратордун уруксаты керек.'
 
@@ -46,6 +53,7 @@ class IsApprovedUser(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request_role(request) in {
             UserProfile.Role.ADMIN,
+            UserProfile.Role.ACCOUNTANT,
             UserProfile.Role.CURATOR,
             UserProfile.Role.MENTOR,
         }
