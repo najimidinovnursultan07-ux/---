@@ -410,19 +410,16 @@ export default function App() {
               </div>
             )}
 
-            {/* Loading overlay (initial load only) */}
-            <div className="relative">
-              {isLoading && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/75 backdrop-blur-[1px]">
-                  <RefreshCw className="animate-spin text-[#FF6B00]" size={26} />
-                  <span className="sr-only">Маалымат жүктөлүүдө</span>
-                </div>
-              )}
+            {/* Loading overlay — initial bootstrap only */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="animate-spin text-[#FF6B00]" size={26} />
+              </div>
+            )}
 
-              {/* ── The unified daily journal ─────────────────────────── */}
+            {!isLoading && (
               <DailyJournal
                 students={visibleStudents}
-                attendanceRecords={attendanceRecords}
                 canEdit={canEditAttendance}
                 canManageStudents={canManageStudents}
                 selectedDate={selectedDate}
@@ -441,7 +438,7 @@ export default function App() {
                 onToast={showToast}
                 isLoading={isLoading}
               />
-            </div>
+            )}
           </>
         )}
 
