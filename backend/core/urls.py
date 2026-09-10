@@ -26,6 +26,9 @@ urlpatterns = [
     path('api/users/', UserListView.as_view(), name='users-list'),
     path('api/users/<int:user_id>/change-role/', ChangeRoleView.as_view(), name='users-change-role'),
     path('api/users/<int:user_id>/', DeleteUserView.as_view(), name='users-delete'),
+    # Legacy salary endpoint (kept for backward compatibility)
     path('api/finance/salaries/', SalaryListView.as_view(), name='finance-salaries'),
+    # New payroll module
+    path('api/payroll/', include('payroll.urls')),
     path('api/', include('attendance.urls')),
 ]

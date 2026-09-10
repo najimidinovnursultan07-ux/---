@@ -90,6 +90,33 @@ export async function fetchSalaryRows(startDate, endDate) {
   return data;
 }
 
+// ── New payroll module ────────────────────────────────────────────────────────
+
+export async function fetchPayroll(startDate, endDate, mentorId) {
+  const { data } = await axiosInstance.get("/payroll/", {
+    params: {
+      start_date: startDate,
+      end_date: endDate,
+      ...(mentorId ? { mentor_id: mentorId } : {}),
+    },
+  });
+  return data;
+}
+
+export async function fetchPayrollRates() {
+  const { data } = await axiosInstance.get("/payroll/rates/");
+  return data;
+}
+
+export async function upsertMentorRate(mentorId, rateData) {
+  const { data } = await axiosInstance.put(`/payroll/rates/${mentorId}/`, rateData);
+  return data;
+}
+
+export async function deleteMentorRate(mentorId) {
+  await axiosInstance.delete(`/payroll/rates/${mentorId}/`);
+}
+
 export async function downloadMentorMonthlyPdf(year, month, mentorId) {
   const response = await axiosInstance.get("/attendance/mentor-monthly-pdf/", {
     params: {
