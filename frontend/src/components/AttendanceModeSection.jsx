@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarDays, Check, Cloud, RefreshCw, Save, UserRound } from "lucide-react";
+import { CalendarDays, Check, Cloud, Save, UserRound } from "lucide-react";
 import { fetchAttendance, saveAttendanceModes } from "../api/attendanceApi";
 
 function getToday() {
@@ -82,7 +82,7 @@ export default function AttendanceModeSection({ initialDate = getToday(), studen
         </button>
       </div>
       {isLoading ? (
-        <div className="flex justify-center px-5 py-12"><RefreshCw className="animate-spin text-forest" size={24} /></div>
+        <div className="flex justify-center px-5 py-12"><img alt="Окурмэн жүктөлүүдө" className="h-14 w-14 rounded-full object-contain animate-pulse" src="/logo.jpg" /></div>
       ) : error ? (
         <div className="px-5 py-12 text-center text-sm text-[#b9504c] sm:px-7">{error}</div>
       ) : !presentStudents.length ? (

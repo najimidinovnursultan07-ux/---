@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Archive, Download, RefreshCw } from "lucide-react";
+import { Archive, Download } from "lucide-react";
 import { fetchAttendanceHistory } from "../api/attendanceApi";
 
 function downloadHistory(history) {
@@ -28,7 +28,7 @@ export default function AttendanceHistory() {
   }, [months]);
 
   if (error) return <div className="rounded-lg border border-[#f0c8c1] bg-[#fff4f1] p-5 text-sm text-[#b9504c]">{error}</div>;
-  if (!history) return <div className="flex justify-center rounded-lg border border-[#e6ece8] bg-white p-12"><RefreshCw className="animate-spin text-forest" size={24} /></div>;
+  if (!history) return <div className="flex justify-center rounded-lg border border-[#e6ece8] bg-white p-12"><img alt="Окурмэн жүктөлүүдө" className="h-14 w-14 rounded-full object-contain animate-pulse" src="/logo.jpg" /></div>;
 
   return (
     <section className="rounded-lg border border-[#e6ece8] bg-white shadow-panel">

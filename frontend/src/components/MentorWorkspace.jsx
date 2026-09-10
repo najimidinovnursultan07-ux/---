@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, RefreshCw, Users } from "lucide-react";
+import { CalendarDays, Users } from "lucide-react";
 import { fetchAttendance, fetchGroups, fetchStudents } from "../api/attendanceApi";
 import { fetchUsers } from "../api/authApi";
 import GroupTabs from "./GroupTabs";
@@ -89,7 +89,7 @@ export default function MentorWorkspace({ role }) {
         </label>
       </div>
       {error && <p className="mb-4 rounded-md bg-[#fff4f1] px-3 py-2 text-sm text-[#b9504c]">{error}</p>}
-      {isLoading ? <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-forest" size={24} /></div> : selectedMentor ? (
+      {isLoading ? <div className="flex justify-center py-10"><img alt="Окурмэн жүктөлүүдө" className="h-14 w-14 rounded-full object-contain animate-pulse" src="/logo.jpg" /></div> : selectedMentor ? (
         <>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md bg-[#f7faf7] px-4 py-3">
             <div><p className="font-bold text-ink">{selectedMentor.full_name || selectedMentor.email}</p><p className="text-xs text-muted">{groups.length} тайпа · {students.length} активдүү окуучу</p></div>

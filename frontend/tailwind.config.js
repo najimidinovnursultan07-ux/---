@@ -4,12 +4,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#182329",
+        ink: "#0f172a",
         muted: "#738087",
-        canvas: "#f2f5f0",
+        canvas: "#f8fafc",
         coral: {
-          DEFAULT: "#e86f51",
-          dark: "#bd4f36",
+          DEFAULT: "#f97316",
+          dark: "#ea580c",
         },
         forest: {
           DEFAULT: "#24734d",

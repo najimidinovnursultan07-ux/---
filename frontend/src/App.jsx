@@ -264,7 +264,7 @@ export default function App() {
     };
   }, []);
 
-  if (isAuthLoading) return <div className="flex min-h-screen items-center justify-center"><RefreshCw className="animate-spin text-forest" size={26} /></div>;
+  if (isAuthLoading) return <div className="flex min-h-screen items-center justify-center bg-slate-50"><img alt="Окурмэн жүктөлүүдө" className="h-24 w-24 rounded-full object-contain animate-pulse" src="/logo.jpg" /></div>;
   if (!user) return <AuthPanel onAuthenticated={handleAuthenticated} />;
   if (!user.is_approved && user.role !== "ADMIN") {
     return <main className="flex min-h-screen items-center justify-center px-5"><div className="max-w-lg rounded-lg border border-[#eadcc3] bg-[#fffaf0] p-8 text-center shadow-sm"><h1 className="mb-3 font-display text-xl font-bold text-ink">Аккаунт күтүп жатат</h1><p className="text-sm leading-6 text-[#765f38]">Аккаунтуңузга уруксат бериле элек. Администратор же Куратор ролуңузду бекитишин күтүңүз.</p><button className="mt-6 rounded-md bg-ink px-4 py-2 text-sm font-bold text-white" onClick={() => { window.localStorage.removeItem("attendance-token"); window.location.reload(); }} type="button">Чыгуу</button></div></main>;
@@ -278,10 +278,10 @@ export default function App() {
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && <UserRolePanel role={activeRole} />}
         {(activeRole === "ADMIN" || activeRole === "CURATOR") && <MentorWorkspace role={activeRole} />}
         {(activeRole === "ADMIN" || activeRole === "CURATOR" || activeRole === "MENTOR") && <GroupManagementPanel canManage={activeRole === "MENTOR"} deletedGroupId={deletedGroupId} onGroupCreated={(group) => { setGroups((current) => [...current, group]); setActiveGroupId(String(group.id)); }} role={activeRole} />}
-        <div className="mb-5 flex min-w-0 gap-2 overflow-x-auto border-b border-[#dfe8df]">
-          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "daily" ? "border-forest text-forest" : "border-transparent text-muted"}`} onClick={() => setActiveView("daily")} type="button">Күнүмдүк журнал</button>
-          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "modes" ? "border-forest text-forest" : "border-transparent text-muted"}`} onClick={() => setActiveView("modes")} type="button"><Wifi size={16} />Формат боюнча катышуу</button>
-          {(activeRole === "ADMIN" || activeRole === "CURATOR") && <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "history" ? "border-forest text-forest" : "border-transparent text-muted"}`} onClick={() => setActiveView("history")} type="button"><Archive size={16} />3 айлык архив</button>}
+        <div className="mb-5 flex min-w-0 gap-2 overflow-x-auto border-b border-slate-200">
+          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "daily" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("daily")} type="button">Күнүмдүк журнал</button>
+          <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "modes" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("modes")} type="button"><Wifi size={16} />Формат боюнча катышуу</button>
+          {(activeRole === "ADMIN" || activeRole === "CURATOR") && <button className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-extrabold ${activeView === "history" ? "border-orange-500 text-orange-600" : "border-transparent text-muted"}`} onClick={() => setActiveView("history")} type="button"><Archive size={16} />3 айлык архив</button>}
         </div>
         {activeView === "history" ? <AttendanceHistory /> : activeView === "modes" ? <AttendanceModeSection canEdit={activeRole === "MENTOR"} initialDate={getToday()} onSaved={(message) => setToast({ type: "success", message })} students={visibleStudents} /> : <>
         <GroupTabs

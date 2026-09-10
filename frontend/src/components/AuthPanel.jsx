@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, KeyRound, LogIn, UserPlus } from "lucide-react";
+import { Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
 import { login, register } from "../api/authApi";
 
 export default function AuthPanel({ onAuthenticated }) {
@@ -52,9 +52,9 @@ export default function AuthPanel({ onAuthenticated }) {
   const inputClass = (field) => `h-11 w-full rounded-md border px-3 text-sm outline-none focus:border-forest ${fieldErrors[field] ? "border-[#d77c71] bg-[#fff9f7]" : "border-[#d6dfd8]"}`;
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <form className="w-full max-w-md rounded-lg border border-[#dfe8df] bg-white p-7 shadow-xl" onSubmit={handleSubmit}>
-        <div className="mb-7 flex h-12 w-12 items-center justify-center rounded-md bg-ink text-white"><KeyRound size={22} /></div>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+      <form className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-7 shadow-xl" onSubmit={handleSubmit}>
+        <img alt="Окурмэн" className="mb-7 h-16 w-16 rounded-full object-contain" src="/logo.jpg" />
         <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">Катышуу платформасы</p>
         <h1 className="mb-6 font-display text-2xl font-bold text-ink">{isRegistering ? "Аккаунт түзүү" : "Кош келиңиз"}</h1>
         {isRegistering && <div className="mb-3"><input aria-describedby={fieldErrors.fullName ? "full-name-error" : undefined} aria-invalid={Boolean(fieldErrors.fullName)} className={inputClass("fullName")} name="fullName" onChange={updateField} placeholder="Толук аты-жөнү" required value={form.fullName} />{fieldErrors.fullName && <p className="mt-1 text-xs font-semibold text-[#b9504c]" id="full-name-error">{fieldErrors.fullName}</p>}</div>}
@@ -69,10 +69,10 @@ export default function AuthPanel({ onAuthenticated }) {
           {fieldErrors.password && <p className="mt-1 text-xs font-semibold text-[#b9504c]" id="password-error">{fieldErrors.password}</p>}
         </div>
         {error && <p className="mb-4 rounded-md bg-[#fff4f1] px-3 py-2 text-sm text-[#b9504c]">{error}</p>}
-        <button className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-ink text-sm font-extrabold text-white hover:bg-[#2b3a40] disabled:opacity-60" disabled={isSubmitting} type="submit">
+        <button className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-orange-500 text-sm font-extrabold text-white hover:bg-orange-600 disabled:opacity-60" disabled={isSubmitting} type="submit">
           {isRegistering ? <UserPlus size={17} /> : <LogIn size={17} />}{isSubmitting ? "Күтүңүз..." : isRegistering ? "Катталуу" : "Кирүү"}
         </button>
-        <button className="mt-4 w-full text-sm font-bold text-forest" onClick={toggleMode} type="button">
+        <button className="mt-4 w-full text-sm font-bold text-orange-600" onClick={toggleMode} type="button">
           {isRegistering ? "Аккаунтуңуз барбы? Кирүү" : "Жаңы аккаунт түзүү"}
         </button>
       </form>

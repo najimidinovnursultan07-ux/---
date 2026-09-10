@@ -1,4 +1,4 @@
-import { LogOut, ShieldCheck } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 const roles = {
   ADMIN: { label: "Главный (Admin)", note: "Толук башкаруу", color: "border-[#f1c8bc] bg-[#fff4f1] text-coral-dark" },
@@ -12,9 +12,7 @@ export default function RoleHeader({ activeRole, user, onLogout }) {
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e6ece8] bg-white/80 px-4 py-3 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-ink text-white">
-          <ShieldCheck size={18} />
-        </div>
+        <img alt="Окурмэн" className="h-10 w-10 rounded-full object-contain" src="/logo.jpg" />
         <div>
           <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">Активдүү роль</p>
           <p className="text-sm font-extrabold text-ink">{role.label}</p>
@@ -25,7 +23,7 @@ export default function RoleHeader({ activeRole, user, onLogout }) {
           {role.note}
         </div>
         <div className="hidden text-right sm:block"><p className="text-xs font-bold text-ink">{user?.full_name || user?.email}</p><p className="text-[11px] text-muted">{user?.email}</p></div>
-        <button aria-label="Чыгуу" className="rounded-md border border-[#d6dfd8] p-2 text-ink hover:bg-[#f1f9f2]" onClick={onLogout} title="Чыгуу" type="button"><LogOut size={16} /></button>
+        <button aria-label="Чыгуу" className="rounded-md border border-slate-200 p-2 text-slate-900 hover:bg-orange-50" onClick={onLogout} title="Чыгуу" type="button"><LogOut size={16} /></button>
       </div>
     </div>
   );
