@@ -61,6 +61,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
         value = value.strip().lower()
+        # Check all users, including inactive/soft-deleted ones, so a deleted
+        # email slot cannot be re-registered and is not silently resurrected.
         if User.objects.filter(username__iexact=value).exists() or User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError('Бул email менен аккаунт мурда түзүлгөн! Кирүү барагына өтүңүз.')
         return value

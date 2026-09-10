@@ -97,8 +97,10 @@ class DeleteUserView(APIView):
         if request_role(request) != UserProfile.Role.ADMIN:
             return Response({'error': 'Тек гана Админ аккаунттарды өчүрө алат!'}, status=status.HTTP_403_FORBIDDEN)
 
+        # Look up the user regardless of is_active so we can hard-delete
+        # soft-deleted users too if needed, and give a clear 404 for missing IDs.
         try:
-            target = User.objects.select_related('role_profile').get(id=user_id, is_active=True)
+            target = User.objects.select_related('role_profile').get(id=user_id)
         except User.DoesNotExist:
             return Response({'detail': 'Колдонуучу табылган жок.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -106,6 +108,8 @@ class DeleteUserView(APIView):
         if target.id == request.user.id or target.is_superuser or target_role not in {UserProfile.Role.CURATOR, UserProfile.Role.MENTOR}:
             return Response({'detail': 'Бул аккаунтту өчүрүүгө болбойт.'}, status=status.HTTP_403_FORBIDDEN)
 
-        target.is_active = False
-        target.save(update_fields=['is_active'])
+        # Hard delete — removes the row from the database permanently.
+        # Django CASCADE will automatically delete the related UserProfile
+        # and Token rows via their ForeignKey(on_delete=CASCADE).
+        target.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

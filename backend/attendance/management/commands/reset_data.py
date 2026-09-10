@@ -55,12 +55,14 @@ class Command(BaseCommand):
             Attendance.objects.all().delete()
             Student.objects.all().delete()
             StudentGroup.objects.all().delete()
-            user_queryset.update(is_active=False)
+            # Hard-delete Mentor/Curator users so they cannot be automatically
+            # restored by any future build step or admin action.
+            deleted_users, _ = user_queryset.delete()
 
         self.stdout.write(
             self.style.SUCCESS(
                 f'Reset complete. Deleted {attendance_count} attendance records, '
                 f'{student_count} students, {group_count} groups, and '
-                f'{user_count} Mentor/Curator users. Admin accounts were preserved.'
+                f'{deleted_users} Mentor/Curator users. Admin accounts were preserved.'
             )
         )
