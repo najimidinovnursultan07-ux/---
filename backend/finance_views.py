@@ -1,3 +1,13 @@
+"""
+finance_views.py — legacy salary endpoint + attendance reset.
+
+All salary calculations count ONLY attendance records where:
+  is_present = True
+  attendance_type IN ('OFFLINE', 'ONLINE')
+
+Records with is_present=False or any other state are NEVER counted.
+"""
+
 from datetime import date as date_type
 import calendar
 
@@ -6,18 +16,12 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import status as http_status
 
 from authentication.permissions import IsAccountantOrAdmin, IsAdminUserRole
-
 from attendance.models import Attendance
 
 
 ATTENDANCE_RATE = 150
-
-# Дата деплоя нового DailyJournal (двухкнопочный журнал без кнопки "Келген жок").
-# Записи ДО этой даты с дефолтным OFFLINE могут быть артефактами старого кода.
-NEW_UI_DATE = date_type(2026, 9, 12)
 
 
 def _period_from_request(request):
@@ -37,6 +41,11 @@ def _period_from_request(request):
 
 
 class SalaryListView(APIView):
+    """
+    GET /api/finance/salaries/
+    Legacy endpoint — returns salary rows per mentor/group.
+    Counts ONLY is_present=True with attendance_type OFFLINE or ONLINE.
+    """
     permission_classes = [IsAccountantOrAdmin]
 
     def get(self, request):
@@ -46,7 +55,13 @@ class SalaryListView(APIView):
 
         grouped_rows = (
             Attendance.objects
-            .filter(date__range=(start_date, end_date), student__group__mentor__role_profile__role='MENTOR')
+            .filter(
+                date__range=(start_date, end_date),
+                student__group__mentor__role_profile__role='MENTOR',
+                # Only explicitly marked present with a real format
+                is_present=True,
+                attendance_type__in=['OFFLINE', 'ONLINE'],
+            )
             .values(
                 'student__group__mentor_id',
                 'student__group__mentor__first_name',
@@ -56,20 +71,16 @@ class SalaryListView(APIView):
                 'student__group__name',
             )
             .annotate(
-                lessons_count=Count(
-                    'date',
-                    distinct=True,
-                    filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE']),
-                ),
-                offline_count=Count('id', filter=Q(is_present=True, attendance_type='OFFLINE')),
-                online_count=Count('id', filter=Q(is_present=True, attendance_type='ONLINE')),
-                attendance_count=Count(
-                    'id',
-                    filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE']),
-                ),
-                absent_count=Count('id', filter=Q(is_present=False)),
+                lessons_count=Count('date', distinct=True),
+                offline_count=Count('id', filter=Q(attendance_type='OFFLINE')),
+                online_count=Count('id', filter=Q(attendance_type='ONLINE')),
+                attendance_count=Count('id'),
             )
-            .order_by('student__group__mentor__first_name', 'student__group__mentor__last_name', 'student__group__name')
+            .order_by(
+                'student__group__mentor__first_name',
+                'student__group__mentor__last_name',
+                'student__group__name',
+            )
         )
 
         rows = []
@@ -80,18 +91,16 @@ class SalaryListView(APIView):
                     row['student__group__mentor__last_name'],
                 ) if part
             ) or row['student__group__mentor__username']
-            attendance_count = row['attendance_count']
             rows.append({
                 'mentor_id': row['student__group__mentor_id'],
                 'mentor_name': mentor_name,
                 'group_id': row['student__group_id'],
                 'group_name': row['student__group__name'],
                 'lessons_count': row['lessons_count'],
-                'attendance_count': attendance_count,
                 'offline_count': row['offline_count'],
                 'online_count': row['online_count'],
-                'absent_count': row['absent_count'],
-                'salary_amount': attendance_count * ATTENDANCE_RATE,
+                'attendance_count': row['attendance_count'],
+                'salary_amount': row['attendance_count'] * ATTENDANCE_RATE,
             })
 
         return Response({
@@ -106,48 +115,45 @@ class ResetAttendanceView(APIView):
     """
     POST /api/finance/reset-attendance/
 
-    Сбрасывает записи посещаемости, созданные старым кодом — то есть записи
-    где is_present=True но attendance_type='OFFLINE' (дефолт), поставленные
-    ДО даты деплоя нового журнала (NEW_UI_DATE).
+    Resets attendance records that were created by the old checkbox journal
+    (is_present=True with default attendance_type='OFFLINE' — no explicit
+    format was chosen by the mentor).
 
-    Тело запроса (все поля опциональны):
+    After reset, salary will be 0 for mentors until they re-mark attendance
+    explicitly using the new Offline/Online journal.
+
+    Request body (all optional):
       {
-        "mentor_id": 42,          // ограничить одним ментором
-        "month": "2026-09",       // ограничить месяцем YYYY-MM
-        "before_date": "2026-09-12"  // переопределить граничную дату
+        "mentor_id": 42,           // limit to one mentor
+        "month": "2026-09",        // limit to YYYY-MM
+        "reset_all": true          // ignore date cutoff, reset everything
       }
-
-    Возвращает количество сброшенных записей.
     """
     permission_classes = [IsAdminUserRole]
 
     def post(self, request):
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
+        reset_all = bool(request.data.get('reset_all', False))
 
-        # Определяем граничную дату
-        before_date_str = request.data.get('before_date')
-        if before_date_str:
-            before_date = parse_date(before_date_str)
-            if not before_date:
-                return Response({'detail': 'Неверный формат before_date. Ожидается YYYY-MM-DD.'}, status=400)
+        # Base: any is_present=True record (we reset them all when asked)
+        # By default, only records where attendance_type='OFFLINE' (the old default)
+        # are reset, because those might be legacy artifacts.
+        # With reset_all=true, all present records are reset.
+        if reset_all:
+            qs = Attendance.objects.filter(is_present=True)
         else:
-            before_date = NEW_UI_DATE
+            # Only the "suspicious" ones: present + default OFFLINE type
+            qs = Attendance.objects.filter(
+                is_present=True,
+                attendance_type='OFFLINE',
+            )
 
-        # Базовый queryset: старые "случайные" OFFLINE записи
-        qs = Attendance.objects.filter(
-            is_present=True,
-            attendance_type='OFFLINE',
-            date__lt=before_date,
-        )
-
-        # Фильтр по ментору
+        # Filter by mentor
         mentor_id = request.data.get('mentor_id')
         if mentor_id:
             qs = qs.filter(student__group__mentor_id=mentor_id)
 
-        # Фильтр по месяцу
-        month_str = request.data.get('month')  # "2026-09"
+        # Filter by month
+        month_str = request.data.get('month')
         if month_str:
             try:
                 year, month_num = map(int, month_str.split('-'))
@@ -159,15 +165,22 @@ class ResetAttendanceView(APIView):
                     )
                 )
             except (ValueError, TypeError):
-                return Response({'detail': 'Неверный формат month. Ожидается YYYY-MM.'}, status=400)
+                return Response(
+                    {'detail': 'Неверный формат month. Ожидается YYYY-MM.'},
+                    status=400,
+                )
 
         count = qs.count()
         qs.update(is_present=False, is_locked=False)
 
         return Response({
             'reset_count': count,
-            'before_date': str(before_date),
             'mentor_id': mentor_id,
             'month': month_str,
-            'detail': f'Сброшено {count} записей. Зарплата теперь считается только по явным Оффлайн/Онлайн отметкам.',
+            'reset_all': reset_all,
+            'detail': (
+                f'Сброшено {count} записей. '
+                'Зарплата теперь = 0 сом, пока менторы не отметят занятия заново '
+                'через журнал (Оффлайн / Онлайн).'
+            ),
         })
