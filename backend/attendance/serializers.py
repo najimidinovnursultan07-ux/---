@@ -106,5 +106,7 @@ class AttendanceReportSerializer(serializers.Serializer):
     group_name = serializers.CharField()
     total_days = serializers.IntegerField()
     present_days = serializers.IntegerField()
+    online_days = serializers.IntegerField()
+    offline_days = serializers.IntegerField()
     absent_days = serializers.IntegerField()
     attendance_rate = serializers.FloatField()

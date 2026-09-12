@@ -153,9 +153,14 @@ def calculate_payroll(start_date, end_date, mentor_id=None) -> dict:
             'student__group__name',
         )
         .annotate(
-            lessons_count=Count('date', distinct=True),
+            lessons_count=Count(
+                'date',
+                distinct=True,
+                filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE']),
+            ),
             offline_count=Count('id', filter=Q(is_present=True, attendance_type='OFFLINE')),
             online_count=Count('id', filter=Q(is_present=True, attendance_type='ONLINE')),
+            absent_count=Count('id', filter=Q(is_present=False)),
         )
         .order_by('student__group__name')
     )
@@ -184,10 +189,12 @@ def calculate_payroll(start_date, end_date, mentor_id=None) -> dict:
             offline = grow['offline_count'] or 0
             online = grow['online_count'] or 0
             lessons = grow['lessons_count'] or 0
+            absent = grow['absent_count'] or 0
             bd = _calc_breakdown(offline, online, rate)
             bd['group_id'] = grow['student__group_id']
             bd['group_name'] = grow['student__group__name']
             bd['lessons_count'] = lessons
+            bd['absent_count'] = absent
             groups_out.append(bd)
             mentor_offline += offline
             mentor_online += online

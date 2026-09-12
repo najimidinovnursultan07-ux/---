@@ -41,12 +41,12 @@ function fmt(n) {
 
 function downloadCsv(payroll) {
   const rows = [];
-  rows.push(["Ментор", "Группа", "Уроков", "Офф.", "Онл.", "Всего", "К выплате (сом)"]);
+  rows.push(["Ментор", "Группа", "Проведено уроков", "Оффлайн", "Онлайн", "Всего посещений", "Келген жок (0 сом)", "К выплате (сом)"]);
   for (const m of payroll.mentors) {
     for (const g of m.groups) {
-      rows.push([m.mentor_name, g.group_name, g.lessons_count, g.offline_count, g.online_count, g.present_count, g.total_salary]);
+      rows.push([m.mentor_name, g.group_name, g.lessons_count, g.offline_count, g.online_count, g.present_count, g.absent_count, g.total_salary]);
     }
-    rows.push([m.mentor_name, "ИТОГО", m.totals.lessons_count, m.totals.offline_count, m.totals.online_count, m.totals.present_count, m.totals.total_salary]);
+    rows.push([m.mentor_name, "ИТОГО", m.totals.lessons_count, m.totals.offline_count, m.totals.online_count, m.totals.present_count, m.totals.absent_count, m.totals.total_salary]);
     rows.push([]);
   }
   const csv = rows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
@@ -101,6 +101,7 @@ function MentorRow({ mentor, expanded, onToggle }) {
           <BreakdownBadge label="Офф." value={t.offline_count} color="bg-green-50 text-green-700" />
           <BreakdownBadge label="Онл." value={t.online_count} color="bg-blue-50 text-blue-700" />
           <BreakdownBadge label="Посещ." value={t.present_count} color="bg-slate-100 text-slate-700" />
+          <BreakdownBadge label="Пропущено" value={t.absent_count} color="bg-red-50 text-red-700" />
         </div>
 
         <div className="ml-4 text-right">
@@ -143,10 +144,11 @@ function MentorRow({ mentor, expanded, onToggle }) {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-900 text-left text-[11px] font-extrabold uppercase tracking-wider text-white">
                     <th className="px-3 py-2.5">Группа</th>
-                    <th className="px-3 py-2.5 text-center">Уроков</th>
+                    <th className="px-3 py-2.5 text-center">Проведено</th>
                     <th className="px-3 py-2.5 text-center">Оффлайн</th>
                     <th className="px-3 py-2.5 text-center">Онлайн</th>
                     <th className="px-3 py-2.5 text-center">Всего</th>
+                    <th className="px-3 py-2.5 text-center">Пропущено</th>
                     <th className="px-3 py-2.5 text-right">Офф. доход</th>
                     <th className="px-3 py-2.5 text-right">Онл. доход</th>
                     <th className="px-3 py-2.5 text-right font-extrabold text-orange-300">К выплате</th>
@@ -160,6 +162,7 @@ function MentorRow({ mentor, expanded, onToggle }) {
                       <td className="px-3 py-3 text-center font-medium text-green-700">{g.offline_count}</td>
                       <td className="px-3 py-3 text-center font-medium text-blue-700">{g.online_count}</td>
                       <td className="px-3 py-3 text-center font-bold text-slate-700">{g.present_count}</td>
+                      <td className="px-3 py-3 text-center font-medium text-red-700">{g.absent_count}</td>
                       <td className="px-3 py-3 text-right text-slate-600">{fmt(g.offline_earnings)}</td>
                       <td className="px-3 py-3 text-right text-slate-600">{fmt(g.online_earnings)}</td>
                       <td className="px-3 py-3 text-right font-extrabold text-orange-600">{fmt(g.total_salary)}</td>
@@ -173,6 +176,7 @@ function MentorRow({ mentor, expanded, onToggle }) {
                     <td className="px-3 py-3 text-center font-bold text-green-700">{t.offline_count}</td>
                     <td className="px-3 py-3 text-center font-bold text-blue-700">{t.online_count}</td>
                     <td className="px-3 py-3 text-center font-bold text-slate-800">{t.present_count}</td>
+                    <td className="px-3 py-3 text-center font-bold text-red-700">{t.absent_count}</td>
                     <td className="px-3 py-3 text-right font-bold text-slate-700">{fmt(t.offline_earnings)}</td>
                     <td className="px-3 py-3 text-right font-bold text-slate-700">{fmt(t.online_earnings)}</td>
                     <td className="px-3 py-3 text-right text-lg font-extrabold text-orange-600">{fmt(t.total_salary)} сом</td>
@@ -451,8 +455,9 @@ export default function AccountantDashboard({ user, onLogout }) {
         lessons: acc.lessons + m.totals.lessons_count,
         online: acc.online + m.totals.online_count,
         offline: acc.offline + m.totals.offline_count,
+        absent: acc.absent + m.totals.absent_count,
       }),
-      { salary: 0, present: 0, lessons: 0, online: 0, offline: 0 },
+      { salary: 0, present: 0, lessons: 0, online: 0, offline: 0, absent: 0 },
     );
   }, [filteredMentors]);
 
@@ -604,6 +609,7 @@ export default function AccountantDashboard({ user, onLogout }) {
                 <StatCard label="Уроков" value={totals.lessons} />
                 <StatCard label="Оффлайн" value={totals.offline} />
                 <StatCard label="Онлайн" value={totals.online} />
+                <StatCard label="Пропущено (0 сом)" value={totals.absent} />
               </div>
 
               {error && (

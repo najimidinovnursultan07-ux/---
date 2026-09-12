@@ -187,9 +187,10 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 	def _prepare_day(self, selected_date):
 		"""Ensure Attendance rows exist for every active student on selected_date."""
 		today = timezone.localdate()
-		# Lock past days that are still unlocked (housekeeping)
+		# Lock only past days (not future dates)
 		Attendance.objects.filter(date__lt=today, is_locked=False).update(is_locked=True)
-		# Create default (absent) rows for all active students on the requested date
+		# Create default (absent) rows for all active students on the requested date.
+		# ignore_conflicts=True means existing records are never overwritten here.
 		students = Student.objects.filter(is_active=True)
 		Attendance.objects.bulk_create(
 			[Attendance(student=student, date=selected_date) for student in students],
@@ -242,7 +243,6 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 				)
 				saved_records.append(attendance)
 		return Response(AttendanceSerializer(saved_records, many=True).data)
-
 	@action(detail=False, methods=['get'], url_path='history')
 	def history(self, request):
 		try:
@@ -305,7 +305,10 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			date__range=(start_date, end_date),
 		).values('student_id').annotate(
 			total_days=Count('id'),
-			present_days=Count('id', filter=Q(is_present=True)),
+			present_days=Count('id', filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE'])),
+			online_days=Count('id', filter=Q(is_present=True, attendance_type='ONLINE')),
+			offline_days=Count('id', filter=Q(is_present=True, attendance_type='OFFLINE')),
+			absent_days=Count('id', filter=Q(is_present=False)),
 		)
 		counts_by_student = {item['student_id']: item for item in attendance_counts}
 		report_rows = []
@@ -313,15 +316,20 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			counts = counts_by_student.get(student.id, {})
 			total_days = counts['total_days'] or 0
 			present_days = counts['present_days'] or 0
+			online_days = counts.get('online_days', 0) or 0
+			offline_days = counts.get('offline_days', 0) or 0
+			absent_days = counts.get('absent_days', 0) or 0
 			report_rows.append({
 				'student_id': student.id,
 				'full_name': student.full_name,
 				'group_name': student.group.name if student.group_id else student.group_name,
 				'total_days': total_days,
 				'present_days': present_days,
-				'absent_days': total_days - present_days,
-				'attendance_rate': round((present_days / total_days) * 100, 2)
-				if total_days else 0.0,
+				'online_days': online_days,
+				'offline_days': offline_days,
+				'absent_days': absent_days,
+				'attendance_rate': round((present_days / (present_days + absent_days)) * 100, 2)
+				if present_days + absent_days else 0.0,
 			})
 
 		return Response(AttendanceReportSerializer(report_rows, many=True).data)
@@ -521,8 +529,16 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			)
 			.values('student__group_id', 'student__group__name')
 			.annotate(
-				lessons_count=Count('date', distinct=True),
-				present_count=Count('id', filter=Q(is_present=True)),
+				lessons_count=Count(
+					'date',
+					distinct=True,
+					filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE']),
+				),
+				present_count=Count(
+					'id',
+					filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE']),
+				),
+				absent_count=Count('id', filter=Q(is_present=False)),
 			)
 			.order_by('student__group__name')
 		)
@@ -530,6 +546,7 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		RATE = 150
 		total_lessons = 0
 		total_present = 0
+		total_absent = 0
 
 		font_name, font_bold = self._get_font()
 		if font_name is None:
@@ -545,7 +562,6 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		)
 		styles = getSampleStyleSheet()
 		self._register_styles(styles, font_name, font_bold)
-
 		ORANGE = colors.HexColor('#FF6B00')
 		NAVY = colors.HexColor('#0B192C')
 		LIGHT_ORANGE = colors.HexColor('#FFF4EB')
@@ -559,18 +575,21 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		)
 
 		# Groups table
-		header_row = ['Тайпа', 'Өткөрүлгөн сабак', 'Келгендер', 'Жалпы эсеп (150 сом)']
+		header_row = ['Тайпа', 'Проведено', 'Келгендер', 'Келген жок (0 сом)', 'Жалпы эсеп (150 сом)']
 		table_data = [header_row]
 		for row in group_rows:
 			lessons = row['lessons_count'] or 0
 			present = row['present_count'] or 0
+			absent = row['absent_count'] or 0
 			salary = present * RATE
 			total_lessons += lessons
 			total_present += present
+			total_absent += absent
 			table_data.append([
 				row['student__group__name'] or '—',
 				str(lessons),
 				str(present),
+				str(absent),
 				f'{salary:,} KGS'.replace(',', ' '),
 			])
 
@@ -580,10 +599,11 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			'ЖАЛПЫ',
 			str(total_lessons),
 			str(total_present),
+			str(total_absent),
 			f'{total_salary:,} KGS'.replace(',', ' '),
 		])
 
-		col_widths = [74 * mm, 32 * mm, 28 * mm, 40 * mm]
+		col_widths = [58 * mm, 25 * mm, 25 * mm, 28 * mm, 38 * mm]
 		groups_table = Table(table_data, colWidths=col_widths, repeatRows=1)
 		n = len(table_data)
 		groups_table.setStyle(TableStyle([
@@ -618,6 +638,7 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		summary_data = [
 			['Айлык зарплата эсеби', ''],
 			[f'Жалпы келгендер:', f'{total_present} окуучу'],
+			[f'Келген жок (эсептелбейт):', f'{total_absent} окуучу'],
 			[f'Ставка:', f'150 KGS / катышуу'],
 			[f'Эсептелген зарплата:', f'{total_salary:,} KGS'.replace(',', ' ')],
 		]
@@ -684,9 +705,10 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			.values('student_id')
 			.annotate(
 				total_days=Count('id'),
-				present_days=Count('id', filter=Q(is_present=True)),
+				present_days=Count('id', filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE'])),
 				online_days=Count('id', filter=Q(is_present=True, attendance_type='ONLINE')),
 				offline_days=Count('id', filter=Q(is_present=True, attendance_type='OFFLINE')),
+				absent_days=Count('id', filter=Q(is_present=False)),
 			)
 		)
 		stats_map = {item['student_id']: item for item in attendance_qs}
@@ -729,7 +751,7 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		# Build rows grouped by group
 		current_group_id = None
 		table_data = []
-		header_row = ['№', 'Студент', 'Телефон', 'Сабак', 'Келди', 'Онлайн', 'Оффлайн', '%']
+		header_row = ['№', 'Студент', 'Телефон', 'Проведено', 'Келген жок', 'Онлайн', 'Оффлайн', '%']
 
 		for student in students_qs:
 			group_id = student.group_id
@@ -746,6 +768,8 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			present = stats.get('present_days', 0)
 			online = stats.get('online_days', 0)
 			offline = stats.get('offline_days', 0)
+			absent = stats.get('absent_days', 0)
+			total = present + absent
 			rate = round(present / total * 100, 1) if total else 0.0
 
 			# Row number within table_data (excluding group headers)
@@ -754,8 +778,8 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 				str(row_num + 1),
 				student.full_name,
 				student.phone or '—',
-				str(total),
 				str(present),
+				str(absent),
 				str(online),
 				str(offline),
 				f'{rate}%',
@@ -764,7 +788,7 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		if not table_data:
 			content.append(Paragraph('Бул мезгилде студент маалыматтары табылган жок.', styles['OkBody']))
 		else:
-			col_widths = [9 * mm, 55 * mm, 30 * mm, 14 * mm, 14 * mm, 16 * mm, 16 * mm, 20 * mm]
+			col_widths = [9 * mm, 53 * mm, 29 * mm, 18 * mm, 18 * mm, 15 * mm, 15 * mm, 17 * mm]
 			# Insert column header before first data row
 			all_rows = [header_row] + table_data
 			table = Table(all_rows, colWidths=col_widths, repeatRows=1)

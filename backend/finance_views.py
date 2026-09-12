@@ -48,8 +48,18 @@ class SalaryListView(APIView):
                 'student__group__name',
             )
             .annotate(
-                lessons_count=Count('date', distinct=True),
-                attendance_count=Count('id', filter=Q(is_present=True)),
+                lessons_count=Count(
+                    'date',
+                    distinct=True,
+                    filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE']),
+                ),
+                offline_count=Count('id', filter=Q(is_present=True, attendance_type='OFFLINE')),
+                online_count=Count('id', filter=Q(is_present=True, attendance_type='ONLINE')),
+                attendance_count=Count(
+                    'id',
+                    filter=Q(is_present=True, attendance_type__in=['OFFLINE', 'ONLINE']),
+                ),
+                absent_count=Count('id', filter=Q(is_present=False)),
             )
             .order_by('student__group__mentor__first_name', 'student__group__mentor__last_name', 'student__group__name')
         )
@@ -70,6 +80,9 @@ class SalaryListView(APIView):
                 'group_name': row['student__group__name'],
                 'lessons_count': row['lessons_count'],
                 'attendance_count': attendance_count,
+                'offline_count': row['offline_count'],
+                'online_count': row['online_count'],
+                'absent_count': row['absent_count'],
                 'salary_amount': attendance_count * ATTENDANCE_RATE,
             })
 
