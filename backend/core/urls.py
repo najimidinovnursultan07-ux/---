@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from authentication.views import ChangeRoleView, DeleteUserView, UserListView
-from finance_views import SalaryListView
+from finance_views import SalaryListView, ResetAttendanceView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,6 +28,8 @@ urlpatterns = [
     path('api/users/<int:user_id>/', DeleteUserView.as_view(), name='users-delete'),
     # Legacy salary endpoint (kept for backward compatibility)
     path('api/finance/salaries/', SalaryListView.as_view(), name='finance-salaries'),
+    # Admin-only: reset old-code attendance artifacts
+    path('api/finance/reset-attendance/', ResetAttendanceView.as_view(), name='finance-reset-attendance'),
     # New payroll module
     path('api/payroll/', include('payroll.urls')),
     path('api/', include('attendance.urls')),

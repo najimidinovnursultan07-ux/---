@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   BarChart3,
   CalendarDays,
   ChevronDown,
@@ -14,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchPayroll, fetchPayrollRates, upsertMentorRate, deleteMentorRate } from "../api/attendanceApi";
+import axiosInstance from "../api/axiosInstance";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -399,6 +401,8 @@ export default function AccountantDashboard({ user, onLogout }) {
   const [rates, setRates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRatesLoading, setIsRatesLoading] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
   const [error, setError] = useState("");
   const [expandedMentors, setExpandedMentors] = useState({});
   const [editingRate, setEditingRate] = useState(null);
@@ -473,6 +477,31 @@ export default function AccountantDashboard({ user, onLogout }) {
 
   function collapseAll() {
     setExpandedMentors({});
+  }
+
+  async function handleResetAttendance(mentorId, monthStr) {
+    if (isResetting) return;
+    setIsResetting(true);
+    setResetResult(null);
+    try {
+      const payload = {};
+      if (mentorId) payload.mentor_id = mentorId;
+      if (monthStr) payload.month = monthStr;
+      const { data } = await axiosInstance.post("/finance/reset-attendance/", payload);
+      setResetResult({ type: "success", message: data.detail, count: data.reset_count });
+      // Reload payroll after reset
+      const { startDate, endDate } = monthRange(year, month);
+      const fresh = await fetchPayroll(startDate, endDate);
+      setPayroll(fresh);
+    } catch (err) {
+      setResetResult({
+        type: "error",
+        message: err.response?.data?.detail || "Сброс не удался.",
+        count: 0,
+      });
+    } finally {
+      setIsResetting(false);
+    }
   }
 
   const years = [now.getFullYear() - 2, now.getFullYear() - 1, now.getFullYear()];
@@ -719,6 +748,53 @@ export default function AccountantDashboard({ user, onLogout }) {
                     type="button"
                   >
                     Открыть диалог печати
+                  </button>
+                </div>
+              </div>
+
+              {/* Reset old attendance artifacts */}
+              <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
+                    <AlertTriangle className="text-amber-600" size={18} />
+                  </span>
+                  <div>
+                    <p className="font-bold text-slate-800">Пересчёт зарплаты — сброс старых данных</p>
+                    <p className="text-xs text-slate-500">
+                      Убирает записи посещаемости, добавленные старым журналом (без явного выбора Оффлайн/Онлайн).
+                      После сброса в расчёт войдут только явные отметки.
+                    </p>
+                  </div>
+                </div>
+
+                {resetResult && (
+                  <div className={`mb-3 rounded-md px-3 py-2 text-sm font-semibold ${resetResult.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                    {resetResult.message}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                    disabled={isResetting}
+                    onClick={() => handleResetAttendance(null, `${year}-${String(month).padStart(2, "0")}`)}
+                    type="button"
+                  >
+                    {isResetting ? <RefreshCw className="animate-spin" size={15} /> : <AlertTriangle size={15} />}
+                    Сбросить за {MONTH_NAMES[month - 1]} {year}
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    disabled={isResetting}
+                    onClick={() => {
+                      if (window.confirm("Сбросить ВСЕ старые записи (все месяцы, все менторы)? Это необратимо.")) {
+                        handleResetAttendance(null, null);
+                      }
+                    }}
+                    type="button"
+                  >
+                    {isResetting ? <RefreshCw className="animate-spin" size={15} /> : <AlertTriangle size={15} />}
+                    Сбросить все месяцы
                   </button>
                 </div>
               </div>
