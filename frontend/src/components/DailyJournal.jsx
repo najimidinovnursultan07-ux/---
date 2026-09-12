@@ -1,17 +1,18 @@
 /**
  * DailyJournal — Единый журнал посещаемости.
  *
- * Статусы: OFFLINE | ONLINE | ABSENT
+ * Статусы кнопок: OFFLINE | ONLINE (два переключателя)
+ * Дефолт (ничего не нажато) → ABSENT (is_present=false в БД).
+ * Кнопка "Келген жок" убрана — статус ABSENT задаётся автоматически,
+ * когда ни один из двух переключателей не выбран.
  *
  * Архитектура сохранения:
- *   - Изменения статуса — только локально (optimistic UI).
- *   - Реальная запись в БД — ТОЛЬКО через кнопку "Сактоо" (Save All).
- *   - При загрузке страницы и смене даты — fetchAttendance() из сервера.
- *
- * Это гарантирует единственный источник истины и отсутствие race-conditions.
+ *   - Клик → обновление локального statusMap (optimistic UI).
+ *   - Реальная запись в БД → ТОЛЬКО через кнопку "Сактоо".
+ *   - При смене даты / списка студентов → fetchAttendance() с сервера.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -19,11 +20,9 @@ import {
   LoaderCircle,
   MonitorSmartphone,
   Pencil,
-  RotateCcw,
   Save,
   Search,
   Trash2,
-  UserRound,
   Users,
   Wifi,
   WifiOff,
@@ -35,7 +34,8 @@ import { fetchAttendance, saveAttendance, saveAttendanceModes } from "../api/att
 const ORANGE = "#FF6B00";
 const NAVY   = "#0B192C";
 
-const STATUS = {
+// The two selectable statuses shown as buttons
+const ACTIVE_STATUSES = {
   OFFLINE: {
     value: "OFFLINE",
     labelFull: "Оффлайн",
@@ -54,18 +54,18 @@ const STATUS = {
     badgeBg: "bg-[#e3f0ff] text-[#1565c0]",
     icon: Wifi,
   },
-  ABSENT: {
-    value: "ABSENT",
-    labelFull: "Келген жок",
-    labelShort: "Жок",
-    btnActive: "border-[#c62828] bg-[#fff0ed] text-[#c62828]",
-    dot: "bg-[#ef5350]",
-    badgeBg: "bg-[#fff0ed] text-[#c62828]",
-    icon: WifiOff,
-  },
 };
 
-const STATUS_ORDER = ["OFFLINE", "ONLINE", "ABSENT"];
+// ABSENT — implicit default, shown only as a badge / counter
+const ABSENT_STATUS = {
+  value: "ABSENT",
+  labelFull: "Келген жок",
+  dot: "bg-[#ef5350]",
+  badgeBg: "bg-[#fff0ed] text-[#c62828]",
+  icon: WifiOff,
+};
+
+const ACTIVE_STATUS_KEYS = ["OFFLINE", "ONLINE"];
 
 function getToday() {
   const d = new Date();
@@ -84,7 +84,9 @@ function buildStatusMap(records) {
   return map;
 }
 
-// ─── Segmented control for one student ───────────────────────────────────────
+// ─── Two-button toggle ────────────────────────────────────────────────────────
+// Clicking an active button DESELECTS it (→ ABSENT).
+// Clicking an inactive button SELECTS it.
 
 function StatusControl({ studentId, current, canEdit, onChange }) {
   return (
@@ -93,8 +95,8 @@ function StatusControl({ studentId, current, canEdit, onChange }) {
       className="flex overflow-hidden rounded-lg border border-[#d6dfd8] bg-[#f7faf7]"
       role="group"
     >
-      {STATUS_ORDER.map((key) => {
-        const s = STATUS[key];
+      {ACTIVE_STATUS_KEYS.map((key) => {
+        const s = ACTIVE_STATUSES[key];
         const Icon = s.icon;
         const active = current === key;
         return (
@@ -102,12 +104,14 @@ function StatusControl({ studentId, current, canEdit, onChange }) {
             key={key}
             aria-pressed={active}
             disabled={!canEdit}
-            onClick={() => onChange(studentId, key)}
+            onClick={() => onChange(studentId, active ? "ABSENT" : key)}
             type="button"
             className={[
               "flex flex-1 items-center justify-center gap-1.5 px-2 py-2.5 text-[11px] font-extrabold transition-all select-none",
               "focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]",
-              active ? `z-10 ${s.btnActive} shadow-sm` : "text-[#8a9a90] hover:bg-white hover:text-[#3a4a40]",
+              active
+                ? `z-10 ${s.btnActive} shadow-sm`
+                : "text-[#8a9a90] hover:bg-white hover:text-[#3a4a40]",
               !canEdit && "cursor-not-allowed opacity-50",
             ].join(" ")}
           >
@@ -121,7 +125,7 @@ function StatusControl({ studentId, current, canEdit, onChange }) {
   );
 }
 
-// ─── Counter pills ────────────────────────────────────────────────────────────
+// ─── Counter pill ─────────────────────────────────────────────────────────────
 
 function CounterPill({ label, value, color }) {
   return (
@@ -134,11 +138,20 @@ function CounterPill({ label, value, color }) {
 
 // ─── Mobile student card ──────────────────────────────────────────────────────
 
-function StudentCard({ student, index, statusMap, canEdit, canManage, onStatusChange, onEdit, onDelete }) {
+function StudentCard({
+  student, index, statusMap, canEdit, canManage,
+  onStatusChange, onEdit, onDelete,
+}) {
   const status = statusMap[student.id] ?? "ABSENT";
-  const s = STATUS[status];
+  const isAbsent = status === "ABSENT";
+  const borderColor = isAbsent
+    ? "border-l-[#ef5350]"
+    : status === "ONLINE"
+    ? "border-l-[#1e88e5]"
+    : "border-l-[#43a047]";
+
   return (
-    <article className={`rounded-xl border-l-4 border border-[#e6ece8] bg-white p-4 shadow-sm ${s.btnActive.includes("border-[#2e7d32]") ? "border-l-[#43a047]" : s.btnActive.includes("border-[#1565c0]") ? "border-l-[#1e88e5]" : "border-l-[#ef5350]"}`}>
+    <article className={`rounded-xl border-l-4 border border-[#e6ece8] bg-white p-4 shadow-sm ${borderColor}`}>
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <span
@@ -149,7 +162,9 @@ function StudentCard({ student, index, statusMap, canEdit, canManage, onStatusCh
           </span>
           <div className="min-w-0">
             <p className="truncate font-bold text-[#0B192C]">{student.full_name}</p>
-            {student.group_name && <p className="text-xs text-[#7a8e82]">{student.group_name}</p>}
+            {student.group_name && (
+              <p className="text-xs text-[#7a8e82]">{student.group_name}</p>
+            )}
           </div>
         </div>
         {canManage && (
@@ -173,12 +188,19 @@ function StudentCard({ student, index, statusMap, canEdit, canManage, onStatusCh
           </div>
         )}
       </div>
+
       <StatusControl
         canEdit={canEdit}
         current={status}
         onChange={onStatusChange}
         studentId={student.id}
       />
+
+      {isAbsent && (
+        <p className="mt-2 text-center text-[10px] font-bold text-[#ef5350]">
+          Келген жок
+        </p>
+      )}
     </article>
   );
 }
@@ -186,8 +208,8 @@ function StudentCard({ student, index, statusMap, canEdit, canManage, onStatusCh
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function DailyJournal({
-  students,          // visible students (group-filtered by App)
-  canEdit,           // true only for MENTOR on today
+  students,
+  canEdit,
   canManageStudents,
   selectedDate,
   onDateChange,
@@ -199,18 +221,15 @@ export default function DailyJournal({
   onToast,
   isLoading: isParentLoading,
 }) {
-  // ── Local state ─────────────────────────────────────────────────────────────
   const [statusMap, setStatusMap]     = useState({});
   const [isFetching, setIsFetching]   = useState(false);
   const [isSavingAll, setIsSavingAll] = useState(false);
-  const [isDirty, setIsDirty]         = useState(false); // unsaved changes flag
+  const [isDirty, setIsDirty]         = useState(false);
   const [search, setSearch]           = useState("");
 
-  const isToday = selectedDate === getToday();
-  // Editing is allowed on ANY date for MENTOR and ADMIN (canEdit comes from parent)
   const canEditNow = canEdit;
 
-  // ── Fetch attendance from server whenever date or students change ───────────
+  // ── Fetch on date / students change ──────────────────────────────────────────
   useEffect(() => {
     if (!students.length) return;
     let cancelled = false;
@@ -220,7 +239,6 @@ export default function DailyJournal({
       .then((records) => {
         if (cancelled) return;
         const map = buildStatusMap(records);
-        // Default to ABSENT for students not in records
         for (const s of students) {
           if (!(s.id in map)) map[s.id] = "ABSENT";
         }
@@ -234,42 +252,46 @@ export default function DailyJournal({
     return () => { cancelled = true; };
   }, [selectedDate, students]);
 
-  // ── Local status change (no network call) ──────────────────────────────────
+  // ── Local status change ───────────────────────────────────────────────────────
   const handleStatusChange = useCallback((studentId, newStatus) => {
     if (!canEditNow) return;
     setStatusMap((prev) => ({ ...prev, [studentId]: newStatus }));
     setIsDirty(true);
   }, [canEditNow]);
 
-  // ── Bulk local change ──────────────────────────────────────────────────────
+  // ── Bulk helpers ──────────────────────────────────────────────────────────────
   function applyBulk(status) {
     if (!canEditNow) return;
     const next = {};
     for (const s of students) next[s.id] = status;
     setStatusMap((prev) => ({ ...prev, ...next }));
     setIsDirty(true);
-  }  // ── Save All: single authoritative write to the backend ────────────────────
+  }
+
+  // ── Save all → single authoritative write ────────────────────────────────────
   const handleSaveAll = useCallback(async () => {
     if (!canEditNow || !students.length || isSavingAll) return;
     setIsSavingAll(true);
 
     const bulkRecords = students.map((s) => ({
       student_id: s.id,
+      // ABSENT → is_present: false; OFFLINE/ONLINE → is_present: true
       is_present: (statusMap[s.id] ?? "ABSENT") !== "ABSENT",
     }));
 
     try {
-      // 1) Save presence for every student on the selected date
       await saveAttendance(selectedDate, bulkRecords);
 
-      // 2) Save attendance_type for present students on the selected date
-      const presentStudents = students.filter((s) => (statusMap[s.id] ?? "ABSENT") !== "ABSENT");
+      // Send attendance_type only for present (OFFLINE / ONLINE) students
+      const presentStudents = students.filter(
+        (s) => (statusMap[s.id] ?? "ABSENT") !== "ABSENT",
+      );
       if (presentStudents.length) {
         await saveAttendanceModes(
           selectedDate,
           presentStudents.map((s) => ({
             student_id: s.id,
-            attendance_type: statusMap[s.id],
+            attendance_type: statusMap[s.id], // "OFFLINE" or "ONLINE"
           })),
         );
       }
@@ -277,14 +299,13 @@ export default function DailyJournal({
       setIsDirty(false);
       onToast?.({ type: "success", message: "Маалыматтар ийгиликтүү сакталды!" });
     } catch (err) {
-      const msg = err?.response?.data?.detail || "Сактоо учурунда ката кетти.";
-      onToast?.({ type: "error", message: msg });
+      onToast?.({ type: "error", message: err?.response?.data?.detail || "Сактоо учурунда ката кетти." });
     } finally {
       setIsSavingAll(false);
     }
   }, [canEditNow, isSavingAll, students, statusMap, selectedDate, onToast]);
 
-  // ── Filtered + counted ─────────────────────────────────────────────────────
+  // ── Filtering & counts ────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return students;
@@ -313,7 +334,7 @@ export default function DailyJournal({
   return (
     <section className="overflow-hidden rounded-xl border border-[#e6ece8] bg-white shadow-sm">
 
-      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+      {/* HEADER */}
       <div className="px-5 py-5 sm:px-7" style={{ background: NAVY }}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -324,8 +345,6 @@ export default function DailyJournal({
               Күнүмдүк журнал
             </h2>
           </div>
-
-          {/* Date + Today */}
           <div className="flex items-center gap-2">
             <CalendarDays className="text-[#FF6B00]" size={15} />
             <input
@@ -345,20 +364,23 @@ export default function DailyJournal({
           </div>
         </div>
 
-        {/* Counter pills */}
+        {/* Counters */}
         <div className="mt-4 flex flex-wrap gap-2">
-          <CounterPill color="bg-white/10 text-white"            label="Жалпы"   value={counts.total} />
-          <CounterPill color="bg-[#2e7d32]/20 text-[#81c784]"   label="Оффлайн" value={counts.offline} />
-          <CounterPill color="bg-[#1565c0]/20 text-[#64b5f6]"   label="Онлайн"  value={counts.online} />
-          <CounterPill color="bg-[#c62828]/20 text-[#ef9a9a]"   label="Жок"     value={counts.absent} />
+          <CounterPill color="bg-white/10 text-white"           label="Жалпы"   value={counts.total} />
+          <CounterPill color="bg-[#2e7d32]/20 text-[#81c784]"  label="Оффлайн" value={counts.offline} />
+          <CounterPill color="bg-[#1565c0]/20 text-[#64b5f6]"  label="Онлайн"  value={counts.online} />
+          <CounterPill color="bg-[#c62828]/20 text-[#ef9a9a]"  label="Жок"     value={counts.absent} />
         </div>
       </div>
 
-      {/* ── TOOLBAR ────────────────────────────────────────────────────────── */}
+      {/* TOOLBAR */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[#e6ece8] bg-[#fafcf9] px-5 py-3 sm:px-7">
         {/* Search */}
         <div className="relative mr-auto min-w-0 flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9a90]" size={14} />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9a90]"
+            size={14}
+          />
           <input
             className="h-9 w-full rounded-md border border-[#d6dfd8] bg-white pl-8 pr-3 text-sm text-[#0B192C] outline-none placeholder:text-[#aabab0] focus:border-[#FF6B00]"
             onChange={(e) => setSearch(e.target.value)}
@@ -368,12 +390,13 @@ export default function DailyJournal({
           />
         </div>
 
-        {/* Bulk buttons — edit mode only */}
+        {/* Bulk buttons */}
         {canEditNow && (
           <div className="flex flex-wrap gap-1.5">
             <button
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#c8e6c9] bg-[#edf5ee] px-3 text-[11px] font-extrabold text-[#2e7d32] transition hover:bg-[#d4edda]"
               onClick={() => applyBulk("OFFLINE")}
+              title="Бардыгы оффлайн деп белгиле"
               type="button"
             >
               <MonitorSmartphone size={13} />
@@ -382,18 +405,11 @@ export default function DailyJournal({
             <button
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#bbdefb] bg-[#e3f0ff] px-3 text-[11px] font-extrabold text-[#1565c0] transition hover:bg-[#cce4ff]"
               onClick={() => applyBulk("ONLINE")}
+              title="Бардыгы онлайн деп белгиле"
               type="button"
             >
               <Wifi size={13} />
               Баары Онл.
-            </button>
-            <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-[11px] font-extrabold text-[#6a7a70] transition hover:bg-[#f0f4f1]"
-              onClick={() => applyBulk("ABSENT")}
-              type="button"
-            >
-              <RotateCcw size={13} />
-              Сбросить
             </button>
           </div>
         )}
@@ -412,7 +428,6 @@ export default function DailyJournal({
             </button>
           )}
 
-          {/* ── PRIMARY: Save button — always visible in edit mode ── */}
           {canEditNow && (
             <button
               className={[
@@ -447,14 +462,14 @@ export default function DailyJournal({
         </div>
       </div>
 
-      {/* Unsaved changes banner */}
+      {/* Unsaved-changes banner */}
       {canEditNow && isDirty && (
-        <div className="flex items-center justify-between bg-[#fff8f0] px-5 py-2.5 text-xs font-bold text-[#b85c00] sm:px-7">
-          <span>⚠️ Сакталбаган өзгөртүүлөр бар. "Сактоо" баскычын басыңыз.</span>
+        <div className="flex items-center bg-[#fff8f0] px-5 py-2.5 text-xs font-bold text-[#b85c00] sm:px-7">
+          ⚠️ Сакталбаган өзгөртүүлөр бар. "Сактоо" баскычын басыңыз.
         </div>
       )}
 
-      {/* ── BODY ───────────────────────────────────────────────────────────── */}
+      {/* BODY */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <LoaderCircle className="animate-spin text-[#FF6B00]" size={28} />
@@ -486,37 +501,50 @@ export default function DailyJournal({
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="text-left text-[11px] font-extrabold uppercase tracking-wider text-[#5a7a60]"
-                  style={{ background: "#f0f4f1" }}>
+                <tr
+                  className="text-left text-[11px] font-extrabold uppercase tracking-wider text-[#5a7a60]"
+                  style={{ background: "#f0f4f1" }}
+                >
                   <th className="w-14 px-4 py-3 text-center">№</th>
                   <th className="px-4 py-3">Аты-жөнү</th>
                   <th className="px-4 py-3">Тайпа</th>
-                  <th className="w-80 px-4 py-3 text-center">Статус</th>
-                  {canManageStudents && <th className="w-24 px-4 py-3 text-center">Аракет</th>}
+                  <th className="w-56 px-4 py-3 text-center">Катышуу</th>
+                  <th className="w-32 px-4 py-3 text-center">Статус</th>
+                  {canManageStudents && (
+                    <th className="w-24 px-4 py-3 text-center">Аракет</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((student, i) => {
                   const status = statusMap[student.id] ?? "ABSENT";
-                  const s = STATUS[status];
+                  const isAbsent = status === "ABSENT";
+                  const badge = isAbsent
+                    ? ABSENT_STATUS
+                    : ACTIVE_STATUSES[status];
                   return (
-                    <tr className="border-t border-[#e6ece8] transition hover:bg-[#f7faf7]" key={student.id}>
+                    <tr
+                      className="border-t border-[#e6ece8] transition hover:bg-[#f7faf7]"
+                      key={student.id}
+                    >
                       <td className="px-4 py-3 text-center text-xs text-[#8a9a90]">{i + 1}</td>
                       <td className="px-4 py-3 font-semibold text-[#0B192C]">{student.full_name}</td>
                       <td className="px-4 py-3 text-xs text-[#7a8e82]">{student.group_name || "—"}</td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <StatusControl
-                            canEdit={canEditNow}
-                            current={status}
-                            onChange={handleStatusChange}
-                            studentId={student.id}
-                          />
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${s.badgeBg}`}>
-                            <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${s.dot}`} />
-                            {s.labelFull}
-                          </span>
-                        </div>
+                        <StatusControl
+                          canEdit={canEditNow}
+                          current={status}
+                          onChange={handleStatusChange}
+                          studentId={student.id}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${badge.badgeBg}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
+                          {badge.labelFull}
+                        </span>
                       </td>
                       {canManageStudents && (
                         <td className="px-4 py-3">
@@ -549,11 +577,11 @@ export default function DailyJournal({
         </>
       )}
 
-      {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
+      {/* FOOTER */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e6ece8] bg-[#fafcf9] px-5 py-3 sm:px-7">
         <div className="flex flex-wrap gap-3">
-          {STATUS_ORDER.map((key) => {
-            const s = STATUS[key];
+          {ACTIVE_STATUS_KEYS.map((key) => {
+            const s = ACTIVE_STATUSES[key];
             const Icon = s.icon;
             return (
               <span className="flex items-center gap-1 text-[11px] font-bold text-[#7a8e82]" key={key}>
@@ -563,16 +591,19 @@ export default function DailyJournal({
               </span>
             );
           })}
+          <span className="flex items-center gap-1 text-[11px] font-bold text-[#7a8e82]">
+            <span className="h-2 w-2 rounded-full bg-[#ef5350]" />
+            <WifiOff size={11} />
+            Келген жок (белгиленбеген)
+          </span>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] text-[#aabab0]">
-          {!canEditNow && !isToday && (
+          {!canEditNow && (
             <span className="rounded-full bg-[#fff4e5] px-2.5 py-1 font-extrabold text-[#b85c00]">
               🔒 Архивделген
             </span>
           )}
-          {search && (
-            <span>{filtered.length} / {students.length} табылды</span>
-          )}
+          {search && <span>{filtered.length} / {students.length} табылды</span>}
         </div>
       </div>
     </section>
