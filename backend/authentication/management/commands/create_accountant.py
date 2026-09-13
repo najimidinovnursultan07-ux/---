@@ -27,6 +27,11 @@ class Command(BaseCommand):
                     f'Accountant account {status}: {user.email or user.username}. No changes made.'
                 )
             )
+            # Enforce is_staff so accountant can access Django admin
+            if not user.is_staff:
+                user.is_staff = True
+                user.save(update_fields=['is_staff'])
+                self.stdout.write(self.style.SUCCESS('Set is_staff=True on existing accountant.'))
             return
 
         user = User.objects.create_user(
@@ -35,6 +40,7 @@ class Command(BaseCommand):
             password=ACCOUNTANT_PASSWORD,
             first_name='Бухгалтер',
             is_active=True,
+            is_staff=True,   # must be True to access Django admin
         )
 
         profile, _ = UserProfile.objects.get_or_create(user=user)

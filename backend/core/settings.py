@@ -52,6 +52,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise serves static files (including Django admin CSS) in production
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -120,9 +122,12 @@ USE_TZ = True
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Static files
+# WhiteNoise serves static files (Django admin CSS, JS, etc.) in production
+# without a separate web server.
 # ─────────────────────────────────────────────────────────────────────────────
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
