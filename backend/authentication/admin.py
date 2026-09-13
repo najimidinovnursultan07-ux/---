@@ -7,6 +7,13 @@ from .models import UserProfile
 
 User = get_user_model()
 
+# Unregister the default User registration (added by django.contrib.auth)
+# before we register our extended version.
+try:
+    admin.site.unregister(User)
+except admin.sites.NotRegistered:
+    pass
+
 
 # ─── Inline: UserProfile inside User ─────────────────────────────────────────
 
