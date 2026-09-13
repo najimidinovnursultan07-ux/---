@@ -686,16 +686,16 @@ export default function AccountantDashboard({ user, onLogout }) {
                     disabled={isResetting}
                     onClick={() => {
                       if (window.confirm(
-                        "Сбросить ВСЕ записи посещаемости (все месяцы, все менторы)?\n\n" +
+                        "Удалить ВСЕ записи посещаемости (все месяцы, все менторы)?\n\n" +
                         "Зарплата всех менторов станет 0 сом.\nЭто необратимо."
                       )) {
-                        handleResetAttendance({ reset_all: true });
+                        handleResetAttendance({ wipe_all: true });
                       }
                     }}
                     type="button"
                   >
                     {isResetting ? <RefreshCw className="animate-spin" size={15} /> : <AlertTriangle size={15} />}
-                    Сбросить всё
+                    Удалить всё (0 сом)
                   </button>
                 </div>
               </div>

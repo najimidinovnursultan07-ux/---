@@ -132,16 +132,21 @@ class ResetAttendanceView(APIView):
     permission_classes = [IsAdminUserRole]
 
     def post(self, request):
+        wipe_all  = bool(request.data.get('wipe_all',  False))
         reset_all = bool(request.data.get('reset_all', False))
 
-        # Base: any is_present=True record (we reset them all when asked)
-        # By default, only records where attendance_type='OFFLINE' (the old default)
-        # are reset, because those might be legacy artifacts.
-        # With reset_all=true, all present records are reset.
+        # wipe_all=true → hard DELETE every Attendance row
+        if wipe_all:
+            total, _ = Attendance.objects.all().delete()
+            return Response({
+                'deleted_count': total,
+                'detail': f'Удалено {total} записей посещаемости. Зарплата всех менторов = 0 сом.',
+            })
+
+        # Base queryset for soft-reset (is_present → False)
         if reset_all:
             qs = Attendance.objects.filter(is_present=True)
         else:
-            # Only the "suspicious" ones: present + default OFFLINE type
             qs = Attendance.objects.filter(
                 is_present=True,
                 attendance_type='OFFLINE',
