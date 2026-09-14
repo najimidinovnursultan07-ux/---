@@ -58,6 +58,16 @@ export async function deleteStudent(studentId) {
   await axiosInstance.delete(`/students/${studentId}/`);
 }
 
+export async function importStudentsFromPdf(file, groupId) {
+  const form = new FormData();
+  form.append("file", file);
+  if (groupId) form.append("group_id", groupId);
+  const { data } = await axiosInstance.post("/students/import-pdf/", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
 export async function fetchAttendanceReport(startDate, endDate) {
   const { data } = await axiosInstance.get("/attendance/report/", {
     params: { start_date: startDate, end_date: endDate },

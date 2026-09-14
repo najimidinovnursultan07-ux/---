@@ -17,6 +17,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Download,
+  FileUp,
   LoaderCircle,
   MonitorSmartphone,
   Pencil,
@@ -217,6 +218,7 @@ export default function DailyJournal({
   onEdit,
   onDelete,
   onAddStudent,
+  onImportPdf,
   onExportPdf,
   onToast,
   isLoading: isParentLoading,
@@ -425,6 +427,18 @@ export default function DailyJournal({
             >
               <Users size={13} />
               <span className="hidden sm:inline">Окуучу кошуу</span>
+            </button>
+          )}
+
+          {canManageStudents && onImportPdf && (
+            <button
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-[11px] font-extrabold text-[#0B192C] transition hover:border-[#FF6B00] hover:text-[#FF6B00]"
+              onClick={onImportPdf}
+              title="PDF файлдан студенттерди импорттоо"
+              type="button"
+            >
+              <FileUp size={13} />
+              <span className="hidden sm:inline">PDF импорт</span>
             </button>
           )}
 

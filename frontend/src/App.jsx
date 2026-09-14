@@ -4,6 +4,7 @@ import { fetchMe } from "./api/authApi";
 import AuthPanel from "./components/AuthPanel";
 import UserRolePanel from "./components/UserRolePanel";
 import AddStudentModal from "./components/AddStudentModal";
+import PdfImportModal from "./components/PdfImportModal";
 import RoleHeader from "./components/RoleHeader";
 import StatsHeader from "./components/StatsHeader";
 import {
@@ -47,6 +48,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [activeRole, setActiveRole] = useState(() => window.localStorage.getItem("attendance-role") || "ADMIN");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isPdfImportOpen, setIsPdfImportOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState(null);
@@ -435,6 +437,7 @@ export default function App() {
                   setStudentToEdit(null);
                   setIsAddModalOpen(true);
                 }}
+                onImportPdf={canManageStudents ? () => setIsPdfImportOpen(true) : undefined}
                 onExportPdf={handleExportPdf}
                 onToast={showToast}
                 isLoading={isLoading}
@@ -456,6 +459,22 @@ export default function App() {
         onSubmit={studentToEdit ? handleUpdateStudent : handleAddStudent}
         student={studentToEdit}
       />
+
+      {isPdfImportOpen && (
+        <PdfImportModal
+          groups={groups}
+          onClose={() => setIsPdfImportOpen(false)}
+          onImported={(created) => {
+            setStudents((prev) =>
+              [...prev, ...created].sort((a, b) =>
+                a.full_name.localeCompare(b.full_name, "ky"),
+              ),
+            );
+            showToast({ type: "success", message: `${created.length} студент импорттолду.` });
+            setIsPdfImportOpen(false);
+          }}
+        />
+      )}
 
       {studentToDelete && (
         <div
