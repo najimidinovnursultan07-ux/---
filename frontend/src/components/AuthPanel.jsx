@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
 import { login, register } from "../api/authApi";
+import { setToken } from "../api/tokenStorage";
 
 export default function AuthPanel({ onAuthenticated }) {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -26,7 +27,7 @@ export default function AuthPanel({ onAuthenticated }) {
       const result = isRegistering
         ? await register(form.fullName, form.email, form.password)
         : await login(form.email, form.password);
-      window.localStorage.setItem("attendance-token", result.token);
+      setToken(result.token);          // stored via tokenStorage, never hardcoded
       onAuthenticated(result.user);
     } catch (requestError) {
       const detail = requestError.response?.data;

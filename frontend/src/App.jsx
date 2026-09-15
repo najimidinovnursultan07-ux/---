@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Archive, CheckCircle2, FileText, RefreshCw } from "lucide-react";
 import { fetchMe } from "./api/authApi";
+import { clearAuth, getRole, setRole } from "./api/tokenStorage";
 import AuthPanel from "./components/AuthPanel";
 import UserRolePanel from "./components/UserRolePanel";
 import AddStudentModal from "./components/AddStudentModal";
@@ -46,7 +47,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
-  const [activeRole, setActiveRole] = useState(() => window.localStorage.getItem("attendance-role") || "ADMIN");
+  const [activeRole, setActiveRole] = useState(() => getRole() || "ADMIN");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPdfImportOpen, setIsPdfImportOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState(null);
@@ -223,6 +224,7 @@ export default function App() {
         setUser(currentUser);
         const role = currentUser.effective_role || currentUser.role || "USER";
         setActiveRole(role);
+        setRole(role);  // persist so fast-reload shows correct role before /me/ resolves
         if (role === "ACCOUNTANT") {
           if (window.location.pathname !== "/accountant/dashboard")
             window.history.replaceState({}, "", "/accountant/dashboard");
@@ -271,7 +273,7 @@ export default function App() {
       <AccountantDashboard
         user={user}
         onLogout={() => {
-          window.localStorage.removeItem("attendance-token");
+          clearAuth();
           window.location.replace("/");
         }}
       />
@@ -288,7 +290,7 @@ export default function App() {
           <button
             className="mt-6 rounded-md bg-ink px-4 py-2 text-sm font-bold text-white"
             onClick={() => {
-              window.localStorage.removeItem("attendance-token");
+              clearAuth();
               window.location.reload();
             }}
             type="button"
@@ -308,7 +310,7 @@ export default function App() {
           activeRole={activeRole}
           user={user}
           onLogout={() => {
-            window.localStorage.removeItem("attendance-token");
+            clearAuth();
             window.location.reload();
           }}
         />

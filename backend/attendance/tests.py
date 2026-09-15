@@ -169,9 +169,10 @@ class FinanceSalaryApiTests(APITestCase):
 		self.second_student = Student.objects.create(full_name='Second Student', group=self.group)
 
 	def test_accountant_receives_salary_by_present_attendance(self):
-		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 1), is_present=True)
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 1), is_present=True, attendance_type='OFFLINE')
 		Attendance.objects.create(student=self.second_student, date=date(2026, 9, 1), is_present=False)
-		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 2), is_present=True)
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 2), is_present=True, attendance_type='ONLINE')
+		Attendance.objects.create(student=self.second_student, date=date(2026, 9, 2), is_present=False)
 		self.client.force_authenticate(self.accountant)
 
 		response = self.client.get('/api/finance/salaries/?start_date=2026-09-01&end_date=2026-09-30')
@@ -180,7 +181,28 @@ class FinanceSalaryApiTests(APITestCase):
 		self.assertEqual(response.data['rate'], 150)
 		self.assertEqual(response.data['rows'][0]['lessons_count'], 2)
 		self.assertEqual(response.data['rows'][0]['attendance_count'], 2)
+		self.assertEqual(response.data['rows'][0]['offline_count'], 1)
+		self.assertEqual(response.data['rows'][0]['online_count'], 1)
+		self.assertEqual(response.data['rows'][0]['absent_count'], 2)
 		self.assertEqual(response.data['rows'][0]['salary_amount'], 300)
+
+	def test_payroll_excludes_absent_marks_from_lessons_and_salary(self):
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 1), is_present=True, attendance_type='OFFLINE')
+		Attendance.objects.create(student=self.second_student, date=date(2026, 9, 1), is_present=False)
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 2), is_present=True, attendance_type='ONLINE')
+		Attendance.objects.create(student=self.second_student, date=date(2026, 9, 2), is_present=False)
+		self.client.force_authenticate(self.accountant)
+
+		response = self.client.get('/api/payroll/?start_date=2026-09-01&end_date=2026-09-30')
+
+		self.assertEqual(response.status_code, 200)
+		group = response.data['mentors'][0]['groups'][0]
+		self.assertEqual(group['lessons_count'], 2)
+		self.assertEqual(group['offline_count'], 1)
+		self.assertEqual(group['online_count'], 1)
+		self.assertEqual(group['present_count'], 2)
+		self.assertEqual(group['absent_count'], 2)
+		self.assertEqual(group['total_salary'], 300)
 
 	def test_mentor_cannot_access_salary_endpoint(self):
 		self.client.force_authenticate(self.mentor)
