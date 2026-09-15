@@ -301,8 +301,8 @@ export default function App() {
 
   // ── Main render ────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen px-3 py-8 sm:px-5 sm:py-14">
-      <div className="mx-auto max-w-[1160px]">
+    <main className="min-h-screen overflow-x-hidden px-3 py-6 sm:px-5 sm:py-10">
+      <div className="mx-auto w-full max-w-[1160px]">
 
         <RoleHeader
           activeRole={activeRole}

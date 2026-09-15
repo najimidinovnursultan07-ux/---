@@ -1,15 +1,10 @@
 /**
- * DailyJournal — Единый журнал посещаемости.
+ * DailyJournal — Mobile-First Responsive Attendance Journal.
  *
- * Статусы кнопок: OFFLINE | ONLINE (два переключателя)
- * Дефолт (ничего не нажато) → ABSENT (is_present=false в БД).
- * Кнопка "Келген жок" убрана — статус ABSENT задаётся автоматически,
- * когда ни один из двух переключателей не выбран.
- *
- * Архитектура сохранения:
- *   - Клик → обновление локального statusMap (optimistic UI).
- *   - Реальная запись в БД → ТОЛЬКО через кнопку "Сактоо".
- *   - При смене даты / списка студентов → fetchAttendance() с сервера.
+ * Breakpoints:
+ *   < sm  (< 640px)  — phone: stacked header, card grid, icon-only buttons
+ *   sm–md (640–768)  — large phone / small tablet: wider cards
+ *   ≥ md  (≥ 768px)  — tablet / desktop: full table
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -30,12 +25,11 @@ import {
 } from "lucide-react";
 import { fetchAttendance, saveAttendance, saveAttendanceModes } from "../api/attendanceApi";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const ORANGE = "#FF6B00";
 const NAVY   = "#0B192C";
 
-// The two selectable statuses shown as buttons
 const ACTIVE_STATUSES = {
   OFFLINE: {
     value: "OFFLINE",
@@ -57,7 +51,6 @@ const ACTIVE_STATUSES = {
   },
 };
 
-// ABSENT — implicit default, shown only as a badge / counter
 const ABSENT_STATUS = {
   value: "ABSENT",
   labelFull: "Келген жок",
@@ -85,15 +78,14 @@ function buildStatusMap(records) {
   return map;
 }
 
-// ─── Two-button toggle ────────────────────────────────────────────────────────
-// Clicking an active button DESELECTS it (→ ABSENT).
-// Clicking an inactive button SELECTS it.
+// ── Two-button status toggle ──────────────────────────────────────────────────
+// Clicking active → deselect (ABSENT). Clicking inactive → select.
 
 function StatusControl({ studentId, current, canEdit, onChange }) {
   return (
     <div
       aria-label="Катышуу статусу"
-      className="flex overflow-hidden rounded-lg border border-[#d6dfd8] bg-[#f7faf7]"
+      className="grid w-full grid-cols-2 overflow-hidden rounded-lg border border-[#d6dfd8] bg-[#f7faf7]"
       role="group"
     >
       {ACTIVE_STATUS_KEYS.map((key) => {
@@ -108,7 +100,7 @@ function StatusControl({ studentId, current, canEdit, onChange }) {
             onClick={() => onChange(studentId, active ? "ABSENT" : key)}
             type="button"
             className={[
-              "flex flex-1 items-center justify-center gap-1.5 px-2 py-2.5 text-[11px] font-extrabold transition-all select-none",
+              "flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-extrabold transition-all select-none whitespace-nowrap",
               "focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]",
               active
                 ? `z-10 ${s.btnActive} shadow-sm`
@@ -116,9 +108,8 @@ function StatusControl({ studentId, current, canEdit, onChange }) {
               !canEdit && "cursor-not-allowed opacity-50",
             ].join(" ")}
           >
-            <Icon aria-hidden="true" size={13} />
-            <span className="hidden sm:inline">{s.labelFull}</span>
-            <span className="sm:hidden">{s.labelShort}</span>
+            <Icon aria-hidden="true" size={14} />
+            <span>{s.labelFull}</span>
           </button>
         );
       })}
@@ -126,24 +117,24 @@ function StatusControl({ studentId, current, canEdit, onChange }) {
   );
 }
 
-// ─── Counter pill ─────────────────────────────────────────────────────────────
+// ── Counter pill ──────────────────────────────────────────────────────────────
 
 function CounterPill({ label, value, color }) {
   return (
-    <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${color}`}>
-      <span className="text-lg font-extrabold leading-none">{value}</span>
-      <span className="text-[11px] font-bold uppercase tracking-wide opacity-70">{label}</span>
+    <div className={`flex flex-col items-center justify-center rounded-xl px-3 py-2.5 ${color}`}>
+      <span className="text-2xl font-extrabold leading-none">{value}</span>
+      <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wide opacity-80">{label}</span>
     </div>
   );
 }
 
-// ─── Mobile student card ──────────────────────────────────────────────────────
+// ── Mobile / tablet student card ──────────────────────────────────────────────
 
 function StudentCard({
   student, index, statusMap, canEdit, canManage,
   onStatusChange, onEdit, onDelete,
 }) {
-  const status = statusMap[student.id] ?? "ABSENT";
+  const status   = statusMap[student.id] ?? "ABSENT";
   const isAbsent = status === "ABSENT";
   const borderColor = isAbsent
     ? "border-l-[#ef5350]"
@@ -152,8 +143,9 @@ function StudentCard({
     : "border-l-[#43a047]";
 
   return (
-    <article className={`rounded-xl border-l-4 border border-[#e6ece8] bg-white p-4 shadow-sm ${borderColor}`}>
-      <div className="mb-3 flex items-start justify-between gap-2">
+    <article className={`w-full overflow-hidden rounded-xl border-l-4 border border-[#e6ece8] bg-white p-3.5 shadow-sm ${borderColor}`}>
+      {/* Name row */}
+      <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <span
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-extrabold text-white"
@@ -162,17 +154,18 @@ function StudentCard({
             {index + 1}
           </span>
           <div className="min-w-0">
-            <p className="truncate font-bold text-[#0B192C]">{student.full_name}</p>
+            <p className="truncate text-sm font-bold text-[#0B192C]">{student.full_name}</p>
             {student.group_name && (
-              <p className="text-xs text-[#7a8e82]">{student.group_name}</p>
+              <p className="truncate text-xs text-[#7a8e82]">{student.group_name}</p>
             )}
           </div>
         </div>
+
         {canManage && (
           <div className="flex shrink-0 gap-1">
             <button
               aria-label={`${student.full_name} өзгөртүү`}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[#5a7a60] hover:bg-[#edf5ee]"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[#5a7a60] hover:bg-[#edf5ee] active:scale-95"
               onClick={() => onEdit(student)}
               type="button"
             >
@@ -180,7 +173,7 @@ function StudentCard({
             </button>
             <button
               aria-label={`${student.full_name} өчүрүү`}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[#b9504c] hover:bg-[#fff0ed]"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[#b9504c] hover:bg-[#fff0ed] active:scale-95"
               onClick={() => onDelete(student)}
               type="button"
             >
@@ -190,6 +183,7 @@ function StudentCard({
         )}
       </div>
 
+      {/* Status buttons — grid, full width, easy to tap */}
       <StatusControl
         canEdit={canEdit}
         current={status}
@@ -206,7 +200,7 @@ function StudentCard({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function DailyJournal({
   students,
@@ -254,14 +248,12 @@ export default function DailyJournal({
     return () => { cancelled = true; };
   }, [selectedDate, students]);
 
-  // ── Local status change ───────────────────────────────────────────────────────
   const handleStatusChange = useCallback((studentId, newStatus) => {
     if (!canEditNow) return;
     setStatusMap((prev) => ({ ...prev, [studentId]: newStatus }));
     setIsDirty(true);
   }, [canEditNow]);
 
-  // ── Bulk helpers ──────────────────────────────────────────────────────────────
   function applyBulk(status) {
     if (!canEditNow) return;
     const next = {};
@@ -270,34 +262,22 @@ export default function DailyJournal({
     setIsDirty(true);
   }
 
-  // ── Save all → single authoritative write ────────────────────────────────────
   const handleSaveAll = useCallback(async () => {
     if (!canEditNow || !students.length || isSavingAll) return;
     setIsSavingAll(true);
-
     const bulkRecords = students.map((s) => ({
       student_id: s.id,
-      // ABSENT → is_present: false; OFFLINE/ONLINE → is_present: true
       is_present: (statusMap[s.id] ?? "ABSENT") !== "ABSENT",
     }));
-
     try {
       await saveAttendance(selectedDate, bulkRecords);
-
-      // Send attendance_type only for present (OFFLINE / ONLINE) students
-      const presentStudents = students.filter(
-        (s) => (statusMap[s.id] ?? "ABSENT") !== "ABSENT",
-      );
-      if (presentStudents.length) {
+      const present = students.filter((s) => (statusMap[s.id] ?? "ABSENT") !== "ABSENT");
+      if (present.length) {
         await saveAttendanceModes(
           selectedDate,
-          presentStudents.map((s) => ({
-            student_id: s.id,
-            attendance_type: statusMap[s.id], // "OFFLINE" or "ONLINE"
-          })),
+          present.map((s) => ({ student_id: s.id, attendance_type: statusMap[s.id] })),
         );
       }
-
       setIsDirty(false);
       onToast?.({ type: "success", message: "Маалыматтар ийгиликтүү сакталды!" });
     } catch (err) {
@@ -307,7 +287,6 @@ export default function DailyJournal({
     }
   }, [canEditNow, isSavingAll, students, statusMap, selectedDate, onToast]);
 
-  // ── Filtering & counts ────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return students;
@@ -332,32 +311,35 @@ export default function DailyJournal({
 
   const isLoading = isParentLoading || isFetching;
 
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <section className="overflow-hidden rounded-xl border border-[#e6ece8] bg-white shadow-sm">
+    <section className="w-full overflow-hidden rounded-xl border border-[#e6ece8] bg-white shadow-sm">
 
-      {/* HEADER */}
-      <div className="px-5 py-5 sm:px-7" style={{ background: NAVY }}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+      <div className="px-4 py-4 sm:px-6 sm:py-5" style={{ background: NAVY }}>
+
+        {/* Title + date: stacked on mobile, row on sm+ */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF6B00]">
               КАТЫШУУ ЖУРНАЛЫ
             </p>
-            <h2 className="mt-0.5 font-display text-xl font-extrabold text-white sm:text-2xl">
+            <h2 className="mt-0.5 text-lg font-extrabold text-white sm:text-2xl">
               Күнүмдүк журнал
             </h2>
           </div>
+
+          {/* Date picker row */}
           <div className="flex items-center gap-2">
-            <CalendarDays className="text-[#FF6B00]" size={15} />
+            <CalendarDays className="shrink-0 text-[#FF6B00]" size={15} />
             <input
-              className="h-9 rounded-md border border-[#2a3a4a] bg-[#162232] px-3 text-sm font-semibold text-white outline-none focus:border-[#FF6B00]"
+              className="h-10 min-w-0 flex-1 rounded-md border border-[#2a3a4a] bg-[#162232] px-3 text-sm font-semibold text-white outline-none focus:border-[#FF6B00] sm:flex-none sm:w-auto"
               id="journal-date"
               onChange={(e) => onDateChange(e.target.value)}
               type="date"
               value={selectedDate}
             />
             <button
-              className="h-9 rounded-md border border-[#2a3a4a] bg-[#162232] px-3 text-xs font-bold text-[#a0b8c0] transition hover:border-[#FF6B00] hover:text-white"
+              className="h-10 shrink-0 rounded-md border border-[#2a3a4a] bg-[#162232] px-3 text-xs font-bold text-[#a0b8c0] transition hover:border-[#FF6B00] hover:text-white active:scale-95"
               onClick={onToday}
               type="button"
             >
@@ -366,8 +348,8 @@ export default function DailyJournal({
           </div>
         </div>
 
-        {/* Counters */}
-        <div className="mt-4 flex flex-wrap gap-2">
+        {/* Stats grid: 2 cols on mobile, 4 on sm+ */}
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <CounterPill color="bg-white/10 text-white"           label="Жалпы"   value={counts.total} />
           <CounterPill color="bg-[#2e7d32]/20 text-[#81c784]"  label="Оффлайн" value={counts.offline} />
           <CounterPill color="bg-[#1565c0]/20 text-[#64b5f6]"  label="Онлайн"  value={counts.online} />
@@ -375,16 +357,17 @@ export default function DailyJournal({
         </div>
       </div>
 
-      {/* TOOLBAR */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#e6ece8] bg-[#fafcf9] px-5 py-3 sm:px-7">
-        {/* Search */}
-        <div className="relative mr-auto min-w-0 flex-1 sm:max-w-xs">
+      {/* ── TOOLBAR ────────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#e6ece8] bg-[#fafcf9] px-4 py-3 sm:px-6">
+
+        {/* Search — full width on mobile */}
+        <div className="relative w-full sm:max-w-xs sm:flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9a90]"
             size={14}
           />
           <input
-            className="h-9 w-full rounded-md border border-[#d6dfd8] bg-white pl-8 pr-3 text-sm text-[#0B192C] outline-none placeholder:text-[#aabab0] focus:border-[#FF6B00]"
+            className="h-10 w-full rounded-md border border-[#d6dfd8] bg-white pl-8 pr-3 text-sm text-[#0B192C] outline-none placeholder:text-[#aabab0] focus:border-[#FF6B00]"
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Окуучуну издөө..."
             type="search"
@@ -392,60 +375,60 @@ export default function DailyJournal({
           />
         </div>
 
-        {/* Bulk buttons */}
-        {canEditNow && (
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#c8e6c9] bg-[#edf5ee] px-3 text-[11px] font-extrabold text-[#2e7d32] transition hover:bg-[#d4edda]"
-              onClick={() => applyBulk("OFFLINE")}
-              title="Бардыгы оффлайн деп белгиле"
-              type="button"
-            >
-              <MonitorSmartphone size={13} />
-              Баары Офф.
-            </button>
-            <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#bbdefb] bg-[#e3f0ff] px-3 text-[11px] font-extrabold text-[#1565c0] transition hover:bg-[#cce4ff]"
-              onClick={() => applyBulk("ONLINE")}
-              title="Бардыгы онлайн деп белгиле"
-              type="button"
-            >
-              <Wifi size={13} />
-              Баары Онл.
-            </button>
-          </div>
-        )}
+        {/* Bulk + action buttons — wrap naturally on small screens */}
+        <div className="flex flex-wrap items-center gap-1.5">
 
-        {/* Action buttons */}
-        <div className="flex gap-1.5">
+          {canEditNow && (
+            <>
+              <button
+                className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-[#c8e6c9] bg-[#edf5ee] px-3 text-xs font-extrabold text-[#2e7d32] whitespace-nowrap transition hover:bg-[#d4edda] active:scale-95 sm:flex-none"
+                onClick={() => applyBulk("OFFLINE")}
+                title="Бардыгы оффлайн деп белгиле"
+                type="button"
+              >
+                <MonitorSmartphone size={13} />
+                Баары Офф.
+              </button>
+              <button
+                className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-[#bbdefb] bg-[#e3f0ff] px-3 text-xs font-extrabold text-[#1565c0] whitespace-nowrap transition hover:bg-[#cce4ff] active:scale-95 sm:flex-none"
+                onClick={() => applyBulk("ONLINE")}
+                title="Бардыгы онлайн деп белгиле"
+                type="button"
+              >
+                <Wifi size={13} />
+                Баары Онл.
+              </button>
+            </>
+          )}
+
           {canManageStudents && (
             <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-[11px] font-extrabold text-white transition hover:opacity-90"
+              className="inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-extrabold text-white whitespace-nowrap transition hover:opacity-90 active:scale-95"
               onClick={onAddStudent}
               style={{ background: NAVY }}
               type="button"
             >
               <Users size={13} />
-              <span className="hidden sm:inline">Окуучу кошуу</span>
+              <span className="hidden xs:inline sm:inline">Кошуу</span>
             </button>
           )}
 
           {canManageStudents && onImportPdf && (
             <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-[11px] font-extrabold text-[#0B192C] transition hover:border-[#FF6B00] hover:text-[#FF6B00]"
+              className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-xs font-extrabold text-[#0B192C] whitespace-nowrap transition hover:border-[#FF6B00] hover:text-[#FF6B00] active:scale-95"
               onClick={onImportPdf}
               title="PDF файлдан студенттерди импорттоо"
               type="button"
             >
               <FileUp size={13} />
-              <span className="hidden sm:inline">PDF импорт</span>
+              <span className="hidden sm:inline">PDF</span>
             </button>
           )}
 
           {canEditNow && (
             <button
               className={[
-                "inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-[11px] font-extrabold text-white shadow-sm transition",
+                "inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-extrabold text-white whitespace-nowrap shadow-sm transition active:scale-95",
                 "disabled:cursor-not-allowed disabled:opacity-60",
                 isDirty ? "ring-2 ring-[#FF6B00] ring-offset-1" : "",
               ].join(" ")}
@@ -465,7 +448,7 @@ export default function DailyJournal({
           )}
 
           <button
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-[11px] font-extrabold text-[#3a4a40] transition hover:border-[#FF6B00] hover:text-[#FF6B00]"
+            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-xs font-extrabold text-[#3a4a40] whitespace-nowrap transition hover:border-[#FF6B00] hover:text-[#FF6B00] active:scale-95"
             onClick={onExportPdf}
             title="PDF жүктөп алуу"
             type="button"
@@ -476,26 +459,26 @@ export default function DailyJournal({
         </div>
       </div>
 
-      {/* Unsaved-changes banner */}
+      {/* Unsaved changes banner */}
       {canEditNow && isDirty && (
-        <div className="flex items-center bg-[#fff8f0] px-5 py-2.5 text-xs font-bold text-[#b85c00] sm:px-7">
+        <div className="flex items-center bg-[#fff8f0] px-4 py-2.5 text-xs font-bold text-[#b85c00] sm:px-6">
           ⚠️ Сакталбаган өзгөртүүлөр бар. "Сактоо" баскычын басыңыз.
         </div>
       )}
 
-      {/* BODY */}
+      {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <LoaderCircle className="animate-spin text-[#FF6B00]" size={28} />
         </div>
       ) : !filtered.length ? (
-        <p className="py-14 text-center text-sm text-[#8a9a90]">
+        <p className="px-4 py-14 text-center text-sm text-[#8a9a90]">
           {search ? `"${search}" боюнча окуучу табылган жок.` : "Окуучулар табылган жок."}
         </p>
       ) : (
         <>
-          {/* Mobile cards */}
-          <div className="grid gap-3 p-4 sm:p-5 md:hidden">
+          {/* ── Mobile / tablet: cards (< md) ──────────────────────────────── */}
+          <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:p-4 md:hidden">
             {filtered.map((student, i) => (
               <StudentCard
                 canEdit={canEditNow}
@@ -511,7 +494,7 @@ export default function DailyJournal({
             ))}
           </div>
 
-          {/* Desktop table */}
+          {/* ── Desktop: table (≥ md) ─────────────────────────────────────── */}
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -519,23 +502,21 @@ export default function DailyJournal({
                   className="text-left text-[11px] font-extrabold uppercase tracking-wider text-[#5a7a60]"
                   style={{ background: "#f0f4f1" }}
                 >
-                  <th className="w-14 px-4 py-3 text-center">№</th>
+                  <th className="w-12 px-4 py-3 text-center">№</th>
                   <th className="px-4 py-3">Аты-жөнү</th>
                   <th className="px-4 py-3">Тайпа</th>
-                  <th className="w-56 px-4 py-3 text-center">Катышуу</th>
-                  <th className="w-32 px-4 py-3 text-center">Статус</th>
+                  <th className="w-52 px-4 py-3 text-center">Катышуу</th>
+                  <th className="w-28 px-4 py-3 text-center">Статус</th>
                   {canManageStudents && (
-                    <th className="w-24 px-4 py-3 text-center">Аракет</th>
+                    <th className="w-20 px-4 py-3 text-center">Аракет</th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((student, i) => {
-                  const status = statusMap[student.id] ?? "ABSENT";
+                  const status   = statusMap[student.id] ?? "ABSENT";
                   const isAbsent = status === "ABSENT";
-                  const badge = isAbsent
-                    ? ABSENT_STATUS
-                    : ACTIVE_STATUSES[status];
+                  const badge    = isAbsent ? ABSENT_STATUS : ACTIVE_STATUSES[status];
                   return (
                     <tr
                       className="border-t border-[#e6ece8] transition hover:bg-[#f7faf7]"
@@ -591,8 +572,8 @@ export default function DailyJournal({
         </>
       )}
 
-      {/* FOOTER */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e6ece8] bg-[#fafcf9] px-5 py-3 sm:px-7">
+      {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e6ece8] bg-[#fafcf9] px-4 py-3 sm:px-6">
         <div className="flex flex-wrap gap-3">
           {ACTIVE_STATUS_KEYS.map((key) => {
             const s = ACTIVE_STATUSES[key];
@@ -608,7 +589,7 @@ export default function DailyJournal({
           <span className="flex items-center gap-1 text-[11px] font-bold text-[#7a8e82]">
             <span className="h-2 w-2 rounded-full bg-[#ef5350]" />
             <WifiOff size={11} />
-            Келген жок (белгиленбеген)
+            Келген жок
           </span>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] text-[#aabab0]">
