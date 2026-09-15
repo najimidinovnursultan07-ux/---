@@ -1,10 +1,12 @@
 /**
  * DailyJournal — Mobile-First Responsive Attendance Journal.
  *
- * Breakpoints:
- *   < sm  (< 640px)  — phone: stacked header, card grid, icon-only buttons
- *   sm–md (640–768)  — large phone / small tablet: wider cards
- *   ≥ md  (≥ 768px)  — tablet / desktop: full table
+ * Toolbar layout:
+ *   Mobile  : Row1=Search | Row2=Filter tabs | Row3=Action buttons
+ *   sm+     : Single flex-row with everything inline
+ *
+ * Filters  : all | present | absent
+ * Status   : OFFLINE | ONLINE  (buttons); ABSENT = implicit default
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -34,7 +36,6 @@ const ACTIVE_STATUSES = {
   OFFLINE: {
     value: "OFFLINE",
     labelFull: "Оффлайн",
-    labelShort: "Офф",
     btnActive: "border-[#2e7d32] bg-[#edf5ee] text-[#2e7d32]",
     dot: "bg-[#43a047]",
     badgeBg: "bg-[#edf5ee] text-[#2e7d32]",
@@ -43,7 +44,6 @@ const ACTIVE_STATUSES = {
   ONLINE: {
     value: "ONLINE",
     labelFull: "Онлайн",
-    labelShort: "Онл",
     btnActive: "border-[#1565c0] bg-[#e3f0ff] text-[#1565c0]",
     dot: "bg-[#1e88e5]",
     badgeBg: "bg-[#e3f0ff] text-[#1565c0]",
@@ -52,7 +52,6 @@ const ACTIVE_STATUSES = {
 };
 
 const ABSENT_STATUS = {
-  value: "ABSENT",
   labelFull: "Келген жок",
   dot: "bg-[#ef5350]",
   badgeBg: "bg-[#fff0ed] text-[#c62828]",
@@ -60,6 +59,13 @@ const ABSENT_STATUS = {
 };
 
 const ACTIVE_STATUS_KEYS = ["OFFLINE", "ONLINE"];
+
+// Filter tab definitions
+const FILTER_TABS = [
+  { id: "all",     label: "Баары" },
+  { id: "present", label: "Келгендер" },
+  { id: "absent",  label: "Келбегендер" },
+];
 
 function getToday() {
   const d = new Date();
@@ -78,41 +84,77 @@ function buildStatusMap(records) {
   return map;
 }
 
-// ── Two-button status toggle ──────────────────────────────────────────────────
+// ── Three-way status control (Offline / Online / Absent) ─────────────────────
 // Clicking active → deselect (ABSENT). Clicking inactive → select.
+// On all screens: 3 equal columns, min-height 44 px for easy tap.
 
 function StatusControl({ studentId, current, canEdit, onChange }) {
+  const isAbsent = current === "ABSENT";
+
+  const baseBtn = [
+    "flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-lg border",
+    "px-1 py-2 text-xs font-extrabold transition-all select-none",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]",
+    !canEdit && "cursor-not-allowed opacity-50",
+  ].filter(Boolean).join(" ");
+
   return (
     <div
       aria-label="Катышуу статусу"
-      className="grid w-full grid-cols-2 overflow-hidden rounded-lg border border-[#d6dfd8] bg-[#f7faf7]"
+      className="mt-2 grid w-full grid-cols-3 gap-1.5"
       role="group"
     >
-      {ACTIVE_STATUS_KEYS.map((key) => {
-        const s = ACTIVE_STATUSES[key];
-        const Icon = s.icon;
-        const active = current === key;
+      {/* OFFLINE */}
+      {(() => {
+        const s = ACTIVE_STATUSES.OFFLINE;
+        const active = current === "OFFLINE";
         return (
           <button
-            key={key}
             aria-pressed={active}
             disabled={!canEdit}
-            onClick={() => onChange(studentId, active ? "ABSENT" : key)}
+            onClick={() => onChange(studentId, active ? "ABSENT" : "OFFLINE")}
             type="button"
-            className={[
-              "flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-extrabold transition-all select-none whitespace-nowrap",
-              "focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]",
-              active
-                ? `z-10 ${s.btnActive} shadow-sm`
-                : "text-[#8a9a90] hover:bg-white hover:text-[#3a4a40]",
-              !canEdit && "cursor-not-allowed opacity-50",
-            ].join(" ")}
+            className={`${baseBtn} ${active ? s.btnActive : "border-[#d6dfd8] text-[#8a9a90] hover:bg-white"}`}
           >
-            <Icon aria-hidden="true" size={14} />
-            <span>{s.labelFull}</span>
+            <MonitorSmartphone size={13} />
+            <span className="truncate">Офф.</span>
           </button>
         );
-      })}
+      })()}
+
+      {/* ONLINE */}
+      {(() => {
+        const s = ACTIVE_STATUSES.ONLINE;
+        const active = current === "ONLINE";
+        return (
+          <button
+            aria-pressed={active}
+            disabled={!canEdit}
+            onClick={() => onChange(studentId, active ? "ABSENT" : "ONLINE")}
+            type="button"
+            className={`${baseBtn} ${active ? s.btnActive : "border-[#d6dfd8] text-[#8a9a90] hover:bg-white"}`}
+          >
+            <Wifi size={13} />
+            <span className="truncate">Онл.</span>
+          </button>
+        );
+      })()}
+
+      {/* ABSENT (explicit deselect button) */}
+      <button
+        aria-pressed={isAbsent}
+        disabled={!canEdit}
+        onClick={() => onChange(studentId, "ABSENT")}
+        type="button"
+        className={`${baseBtn} ${
+          isAbsent
+            ? "border-[#c62828] bg-[#fff0ed] text-[#c62828]"
+            : "border-[#d6dfd8] text-[#8a9a90] hover:bg-white"
+        }`}
+      >
+        <WifiOff size={13} />
+        <span className="truncate">Жок</span>
+      </button>
     </div>
   );
 }
@@ -128,7 +170,7 @@ function CounterPill({ label, value, color }) {
   );
 }
 
-// ── Mobile / tablet student card ──────────────────────────────────────────────
+// ── Student card (mobile / tablet) ────────────────────────────────────────────
 
 function StudentCard({
   student, index, statusMap, canEdit, canManage,
@@ -143,9 +185,11 @@ function StudentCard({
     : "border-l-[#43a047]";
 
   return (
-    <article className={`w-full overflow-hidden rounded-xl border-l-4 border border-[#e6ece8] bg-white p-3.5 shadow-sm ${borderColor}`}>
+    <article
+      className={`box-border w-full max-w-full overflow-hidden rounded-xl border border-[#e6ece8] border-l-4 bg-white p-3.5 shadow-sm ${borderColor}`}
+    >
       {/* Name row */}
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <span
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-extrabold text-white"
@@ -183,19 +227,13 @@ function StudentCard({
         )}
       </div>
 
-      {/* Status buttons — grid, full width, easy to tap */}
+      {/* 3-column status grid */}
       <StatusControl
         canEdit={canEdit}
         current={status}
         onChange={onStatusChange}
         studentId={student.id}
       />
-
-      {isAbsent && (
-        <p className="mt-2 text-center text-[10px] font-bold text-[#ef5350]">
-          Келген жок
-        </p>
-      )}
     </article>
   );
 }
@@ -217,11 +255,12 @@ export default function DailyJournal({
   onToast,
   isLoading: isParentLoading,
 }) {
-  const [statusMap, setStatusMap]     = useState({});
-  const [isFetching, setIsFetching]   = useState(false);
-  const [isSavingAll, setIsSavingAll] = useState(false);
-  const [isDirty, setIsDirty]         = useState(false);
-  const [search, setSearch]           = useState("");
+  const [statusMap, setStatusMap]       = useState({});
+  const [isFetching, setIsFetching]     = useState(false);
+  const [isSavingAll, setIsSavingAll]   = useState(false);
+  const [isDirty, setIsDirty]           = useState(false);
+  const [search, setSearch]             = useState("");
+  const [filterStatus, setFilterStatus] = useState("all"); // "all" | "present" | "absent"
 
   const canEditNow = canEdit;
 
@@ -254,14 +293,7 @@ export default function DailyJournal({
     setIsDirty(true);
   }, [canEditNow]);
 
-  function applyBulk(status) {
-    if (!canEditNow) return;
-    const next = {};
-    for (const s of students) next[s.id] = status;
-    setStatusMap((prev) => ({ ...prev, ...next }));
-    setIsDirty(true);
-  }
-
+  // ── Save all ──────────────────────────────────────────────────────────────────
   const handleSaveAll = useCallback(async () => {
     if (!canEditNow || !students.length || isSavingAll) return;
     setIsSavingAll(true);
@@ -287,17 +319,32 @@ export default function DailyJournal({
     }
   }, [canEditNow, isSavingAll, students, statusMap, selectedDate, onToast]);
 
+  // ── Filtering ─────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(
-      (s) =>
-        s.full_name.toLowerCase().includes(q) ||
-        (s.group_name || "").toLowerCase().includes(q) ||
-        (s.phone || "").includes(q),
-    );
-  }, [students, search]);
+    let list = students;
 
+    // Text search
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (s) =>
+          s.full_name.toLowerCase().includes(q) ||
+          (s.group_name || "").toLowerCase().includes(q) ||
+          (s.phone || "").includes(q),
+      );
+    }
+
+    // Status filter
+    if (filterStatus === "present") {
+      list = list.filter((s) => (statusMap[s.id] ?? "ABSENT") !== "ABSENT");
+    } else if (filterStatus === "absent") {
+      list = list.filter((s) => (statusMap[s.id] ?? "ABSENT") === "ABSENT");
+    }
+
+    return list;
+  }, [students, search, filterStatus, statusMap]);
+
+  // ── Counts ────────────────────────────────────────────────────────────────────
   const counts = useMemo(() => {
     let offline = 0, online = 0, absent = 0;
     for (const s of students) {
@@ -311,13 +358,13 @@ export default function DailyJournal({
 
   const isLoading = isParentLoading || isFetching;
 
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <section className="w-full overflow-hidden rounded-xl border border-[#e6ece8] bg-white shadow-sm">
 
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div className="px-4 py-4 sm:px-6 sm:py-5" style={{ background: NAVY }}>
-
-        {/* Title + date: stacked on mobile, row on sm+ */}
+        {/* Title + date */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF6B00]">
@@ -327,12 +374,10 @@ export default function DailyJournal({
               Күнүмдүк журнал
             </h2>
           </div>
-
-          {/* Date picker row */}
           <div className="flex items-center gap-2">
             <CalendarDays className="shrink-0 text-[#FF6B00]" size={15} />
             <input
-              className="h-10 min-w-0 flex-1 rounded-md border border-[#2a3a4a] bg-[#162232] px-3 text-sm font-semibold text-white outline-none focus:border-[#FF6B00] sm:flex-none sm:w-auto"
+              className="h-10 min-w-0 flex-1 rounded-md border border-[#2a3a4a] bg-[#162232] px-3 text-sm font-semibold text-white outline-none focus:border-[#FF6B00] sm:w-auto sm:flex-none"
               id="journal-date"
               onChange={(e) => onDateChange(e.target.value)}
               type="date"
@@ -348,121 +393,224 @@ export default function DailyJournal({
           </div>
         </div>
 
-        {/* Stats grid: 2 cols on mobile, 4 on sm+ */}
+        {/* Stats: 2-col on mobile, 4-col on sm+ */}
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <CounterPill color="bg-white/10 text-white"           label="Жалпы"   value={counts.total} />
-          <CounterPill color="bg-[#2e7d32]/20 text-[#81c784]"  label="Оффлайн" value={counts.offline} />
-          <CounterPill color="bg-[#1565c0]/20 text-[#64b5f6]"  label="Онлайн"  value={counts.online} />
-          <CounterPill color="bg-[#c62828]/20 text-[#ef9a9a]"  label="Жок"     value={counts.absent} />
+          <CounterPill color="bg-white/10 text-white"          label="Жалпы"   value={counts.total} />
+          <CounterPill color="bg-[#2e7d32]/20 text-[#81c784]" label="Оффлайн" value={counts.offline} />
+          <CounterPill color="bg-[#1565c0]/20 text-[#64b5f6]" label="Онлайн"  value={counts.online} />
+          <CounterPill color="bg-[#c62828]/20 text-[#ef9a9a]" label="Жок"     value={counts.absent} />
         </div>
       </div>
 
       {/* ── TOOLBAR ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#e6ece8] bg-[#fafcf9] px-4 py-3 sm:px-6">
+      {/*
+          Mobile  (< sm): stacked rows
+            Row 1: search (full width)
+            Row 2: filter tabs (full width, 3 cols)
+            Row 3: action buttons (full width, 2 cols)
+          sm+: single flex-row
+      */}
+      <div className="border-b border-[#e6ece8] bg-[#fafcf9] px-4 py-3 sm:px-6">
 
-        {/* Search — full width on mobile */}
-        <div className="relative w-full sm:max-w-xs sm:flex-1">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9a90]"
-            size={14}
-          />
-          <input
-            className="h-10 w-full rounded-md border border-[#d6dfd8] bg-white pl-8 pr-3 text-sm text-[#0B192C] outline-none placeholder:text-[#aabab0] focus:border-[#FF6B00]"
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Окуучуну издөө..."
-            type="search"
-            value={search}
-          />
+        {/* ── MOBILE LAYOUT ── */}
+        <div className="flex flex-col gap-2 sm:hidden">
+
+          {/* Row 1: Search */}
+          <div className="relative w-full">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9a90]"
+              size={14}
+            />
+            <input
+              className="h-10 w-full rounded-md border border-[#d6dfd8] bg-white pl-8 pr-3 text-sm text-[#0B192C] outline-none placeholder:text-[#aabab0] focus:border-[#FF6B00]"
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Окуучуну издөө..."
+              type="search"
+              value={search}
+            />
+          </div>
+
+          {/* Row 2: Filter tabs — full width, 3 equal cols, pill style */}
+          <div className="grid w-full grid-cols-3 gap-1 rounded-xl bg-[#f0f4f1] p-1">
+            {FILTER_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                className={[
+                  "rounded-lg py-2.5 text-xs font-extrabold transition",
+                  filterStatus === tab.id
+                    ? "bg-white text-[#FF6B00] shadow-sm"
+                    : "text-[#6a7a70] hover:text-[#0B192C]",
+                ].join(" ")}
+                onClick={() => setFilterStatus(tab.id)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Row 3: Action buttons — 2 cols when edit-only, or natural wrap */}
+          <div className={`grid gap-2 ${canEditNow ? "grid-cols-2" : "grid-cols-2"}`}>
+            {canManageStudents && (
+              <button
+                className="flex h-10 items-center justify-center gap-1.5 rounded-md text-xs font-extrabold text-white active:scale-95"
+                onClick={onAddStudent}
+                style={{ background: NAVY }}
+                type="button"
+              >
+                <Users size={13} />
+                Окуучу кошуу
+              </button>
+            )}
+
+            {canManageStudents && onImportPdf && (
+              <button
+                className="flex h-10 items-center justify-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white text-xs font-extrabold text-[#0B192C] active:scale-95 hover:border-[#FF6B00] hover:text-[#FF6B00]"
+                onClick={onImportPdf}
+                type="button"
+              >
+                <FileUp size={13} />
+                PDF импорт
+              </button>
+            )}
+
+            {canEditNow && (
+              <button
+                className={[
+                  "flex h-10 items-center justify-center gap-1.5 rounded-md text-xs font-extrabold text-white shadow-sm active:scale-95",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  isDirty ? "ring-2 ring-[#FF6B00] ring-offset-1" : "",
+                ].join(" ")}
+                disabled={isSavingAll || !students.length}
+                onClick={handleSaveAll}
+                style={{ background: ORANGE }}
+                type="button"
+              >
+                {isSavingAll ? <LoaderCircle className="animate-spin" size={13} /> : isDirty ? <CheckCircle2 size={13} /> : <Save size={13} />}
+                {isSavingAll ? "Сакталууда..." : "Сактоо"}
+              </button>
+            )}
+
+            <button
+              className="flex h-10 items-center justify-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white text-xs font-extrabold text-[#3a4a40] active:scale-95 hover:border-[#FF6B00] hover:text-[#FF6B00]"
+              onClick={onExportPdf}
+              type="button"
+            >
+              <Download size={13} />
+              PDF
+            </button>
+          </div>
         </div>
 
-        {/* Bulk + action buttons — wrap naturally on small screens */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* ── DESKTOP LAYOUT (sm+) — single flex row ── */}
+        <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
 
-          {canEditNow && (
-            <>
+          {/* Search */}
+          <div className="relative min-w-[160px] flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9a90]" size={14} />
+            <input
+              className="h-10 w-full rounded-md border border-[#d6dfd8] bg-white pl-8 pr-3 text-sm text-[#0B192C] outline-none placeholder:text-[#aabab0] focus:border-[#FF6B00]"
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Окуучуну издөө..."
+              type="search"
+              value={search}
+            />
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 rounded-xl bg-[#f0f4f1] p-1">
+            {FILTER_TABS.map((tab) => (
               <button
-                className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-[#c8e6c9] bg-[#edf5ee] px-3 text-xs font-extrabold text-[#2e7d32] whitespace-nowrap transition hover:bg-[#d4edda] active:scale-95 sm:flex-none"
-                onClick={() => applyBulk("OFFLINE")}
-                title="Бардыгы оффлайн деп белгиле"
+                key={tab.id}
+                className={[
+                  "rounded-lg px-3 py-1.5 text-xs font-extrabold whitespace-nowrap transition",
+                  filterStatus === tab.id
+                    ? "bg-white text-[#FF6B00] shadow-sm"
+                    : "text-[#6a7a70] hover:text-[#0B192C]",
+                ].join(" ")}
+                onClick={() => setFilterStatus(tab.id)}
                 type="button"
               >
-                <MonitorSmartphone size={13} />
-                Баары Офф.
+                {tab.label}
               </button>
+            ))}
+          </div>
+
+          {/* Action buttons */}
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            {canManageStudents && (
               <button
-                className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-[#bbdefb] bg-[#e3f0ff] px-3 text-xs font-extrabold text-[#1565c0] whitespace-nowrap transition hover:bg-[#cce4ff] active:scale-95 sm:flex-none"
-                onClick={() => applyBulk("ONLINE")}
-                title="Бардыгы онлайн деп белгиле"
+                className="inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-extrabold text-white whitespace-nowrap active:scale-95"
+                onClick={onAddStudent}
+                style={{ background: NAVY }}
                 type="button"
               >
-                <Wifi size={13} />
-                Баары Онл.
+                <Users size={13} />
+                Окуучу кошуу
               </button>
-            </>
-          )}
-
-          {canManageStudents && (
+            )}
+            {canManageStudents && onImportPdf && (
+              <button
+                className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-xs font-extrabold text-[#0B192C] whitespace-nowrap active:scale-95 hover:border-[#FF6B00] hover:text-[#FF6B00]"
+                onClick={onImportPdf}
+                type="button"
+              >
+                <FileUp size={13} />
+                PDF
+              </button>
+            )}
+            {canEditNow && (
+              <button
+                className={[
+                  "inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-extrabold text-white whitespace-nowrap shadow-sm active:scale-95",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  isDirty ? "ring-2 ring-[#FF6B00] ring-offset-1" : "",
+                ].join(" ")}
+                disabled={isSavingAll || !students.length}
+                onClick={handleSaveAll}
+                style={{ background: ORANGE }}
+                type="button"
+              >
+                {isSavingAll ? <LoaderCircle className="animate-spin" size={13} /> : isDirty ? <CheckCircle2 size={13} /> : <Save size={13} />}
+                {isSavingAll ? "Сакталууда..." : "Сактоо"}
+              </button>
+            )}
             <button
-              className="inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-extrabold text-white whitespace-nowrap transition hover:opacity-90 active:scale-95"
-              onClick={onAddStudent}
-              style={{ background: NAVY }}
+              className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-xs font-extrabold text-[#3a4a40] whitespace-nowrap active:scale-95 hover:border-[#FF6B00] hover:text-[#FF6B00]"
+              onClick={onExportPdf}
               type="button"
             >
-              <Users size={13} />
-              <span className="hidden xs:inline sm:inline">Кошуу</span>
+              <Download size={13} />
+              PDF
             </button>
-          )}
-
-          {canManageStudents && onImportPdf && (
-            <button
-              className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-xs font-extrabold text-[#0B192C] whitespace-nowrap transition hover:border-[#FF6B00] hover:text-[#FF6B00] active:scale-95"
-              onClick={onImportPdf}
-              title="PDF файлдан студенттерди импорттоо"
-              type="button"
-            >
-              <FileUp size={13} />
-              <span className="hidden sm:inline">PDF</span>
-            </button>
-          )}
-
-          {canEditNow && (
-            <button
-              className={[
-                "inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-xs font-extrabold text-white whitespace-nowrap shadow-sm transition active:scale-95",
-                "disabled:cursor-not-allowed disabled:opacity-60",
-                isDirty ? "ring-2 ring-[#FF6B00] ring-offset-1" : "",
-              ].join(" ")}
-              disabled={isSavingAll || !students.length}
-              onClick={handleSaveAll}
-              style={{ background: ORANGE }}
-              title="Бардык статустарды сактоо"
-              type="button"
-            >
-              {isSavingAll
-                ? <LoaderCircle className="animate-spin" size={13} />
-                : isDirty
-                ? <CheckCircle2 size={13} />
-                : <Save size={13} />}
-              <span>{isSavingAll ? "Сакталууда..." : "Сактоо"}</span>
-            </button>
-          )}
-
-          <button
-            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d6dfd8] bg-white px-3 text-xs font-extrabold text-[#3a4a40] whitespace-nowrap transition hover:border-[#FF6B00] hover:text-[#FF6B00] active:scale-95"
-            onClick={onExportPdf}
-            title="PDF жүктөп алуу"
-            type="button"
-          >
-            <Download size={13} />
-            PDF
-          </button>
+          </div>
         </div>
       </div>
 
       {/* Unsaved changes banner */}
       {canEditNow && isDirty && (
-        <div className="flex items-center bg-[#fff8f0] px-4 py-2.5 text-xs font-bold text-[#b85c00] sm:px-6">
+        <div className="flex items-center bg-[#fff8f0] px-4 py-2 text-xs font-bold text-[#b85c00] sm:px-6">
           ⚠️ Сакталбаган өзгөртүүлөр бар. "Сактоо" баскычын басыңыз.
+        </div>
+      )}
+
+      {/* Filter result bar */}
+      {(search || filterStatus !== "all") && !isLoading && (
+        <div className="flex items-center justify-between bg-[#f5f7f5] px-4 py-2 text-xs text-[#6a7a70] sm:px-6">
+          <span>
+            {filtered.length} / {students.length} студент
+            {filterStatus === "present" && " · Келгендер"}
+            {filterStatus === "absent"  && " · Келбегендер"}
+          </span>
+          {(search || filterStatus !== "all") && (
+            <button
+              className="font-bold text-[#FF6B00] hover:underline"
+              onClick={() => { setSearch(""); setFilterStatus("all"); }}
+              type="button"
+            >
+              Тазалоо
+            </button>
+          )}
         </div>
       )}
 
@@ -473,11 +621,17 @@ export default function DailyJournal({
         </div>
       ) : !filtered.length ? (
         <p className="px-4 py-14 text-center text-sm text-[#8a9a90]">
-          {search ? `"${search}" боюнча окуучу табылган жок.` : "Окуучулар табылган жок."}
+          {filterStatus === "present"
+            ? "Бүгүн келген окуучулар жок."
+            : filterStatus === "absent"
+            ? "Бардык окуучулар катышты!"
+            : search
+            ? `"${search}" боюнча окуучу табылган жок.`
+            : "Окуучулар табылган жок."}
         </p>
       ) : (
         <>
-          {/* ── Mobile / tablet: cards (< md) ──────────────────────────────── */}
+          {/* Mobile/tablet cards (< md) */}
           <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:p-4 md:hidden">
             {filtered.map((student, i) => (
               <StudentCard
@@ -494,22 +648,18 @@ export default function DailyJournal({
             ))}
           </div>
 
-          {/* ── Desktop: table (≥ md) ─────────────────────────────────────── */}
+          {/* Desktop table (≥ md) */}
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr
-                  className="text-left text-[11px] font-extrabold uppercase tracking-wider text-[#5a7a60]"
-                  style={{ background: "#f0f4f1" }}
-                >
+                <tr className="text-left text-[11px] font-extrabold uppercase tracking-wider text-[#5a7a60]"
+                  style={{ background: "#f0f4f1" }}>
                   <th className="w-12 px-4 py-3 text-center">№</th>
                   <th className="px-4 py-3">Аты-жөнү</th>
                   <th className="px-4 py-3">Тайпа</th>
-                  <th className="w-52 px-4 py-3 text-center">Катышуу</th>
+                  <th className="w-64 px-4 py-3 text-center">Катышуу</th>
                   <th className="w-28 px-4 py-3 text-center">Статус</th>
-                  {canManageStudents && (
-                    <th className="w-20 px-4 py-3 text-center">Аракет</th>
-                  )}
+                  {canManageStudents && <th className="w-20 px-4 py-3 text-center">Аракет</th>}
                 </tr>
               </thead>
               <tbody>
@@ -518,25 +668,44 @@ export default function DailyJournal({
                   const isAbsent = status === "ABSENT";
                   const badge    = isAbsent ? ABSENT_STATUS : ACTIVE_STATUSES[status];
                   return (
-                    <tr
-                      className="border-t border-[#e6ece8] transition hover:bg-[#f7faf7]"
-                      key={student.id}
-                    >
+                    <tr className="border-t border-[#e6ece8] transition hover:bg-[#f7faf7]" key={student.id}>
                       <td className="px-4 py-3 text-center text-xs text-[#8a9a90]">{i + 1}</td>
                       <td className="px-4 py-3 font-semibold text-[#0B192C]">{student.full_name}</td>
                       <td className="px-4 py-3 text-xs text-[#7a8e82]">{student.group_name || "—"}</td>
                       <td className="px-4 py-3">
-                        <StatusControl
-                          canEdit={canEditNow}
-                          current={status}
-                          onChange={handleStatusChange}
-                          studentId={student.id}
-                        />
+                        {/* Table uses the same 3-col StatusControl */}
+                        <div className="grid w-full grid-cols-3 gap-1.5">
+                          {["OFFLINE", "ONLINE", "ABSENT"].map((key) => {
+                            const isAbsentKey = key === "ABSENT";
+                            const active = status === key;
+                            const s = !isAbsentKey ? ACTIVE_STATUSES[key] : null;
+                            const Icon = isAbsentKey ? WifiOff : s.icon;
+                            const label = isAbsentKey ? "Жок" : s.labelFull === "Оффлайн" ? "Офф." : "Онл.";
+                            const activeClass = isAbsentKey
+                              ? "border-[#c62828] bg-[#fff0ed] text-[#c62828]"
+                              : s.btnActive;
+                            return (
+                              <button
+                                key={key}
+                                aria-pressed={active}
+                                disabled={!canEditNow}
+                                onClick={() => handleStatusChange(student.id, key)}
+                                type="button"
+                                className={[
+                                  "flex min-h-[36px] items-center justify-center gap-1 rounded-md border px-1 py-1.5 text-xs font-extrabold transition",
+                                  active ? activeClass : "border-[#d6dfd8] text-[#8a9a90] hover:bg-white",
+                                  !canEditNow && "cursor-not-allowed opacity-50",
+                                ].join(" ")}
+                              >
+                                <Icon size={12} />
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${badge.badgeBg}`}
-                        >
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${badge.badgeBg}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
                           {badge.labelFull}
                         </span>
@@ -544,20 +713,14 @@ export default function DailyJournal({
                       {canManageStudents && (
                         <td className="px-4 py-3">
                           <div className="flex justify-center gap-1">
-                            <button
-                              aria-label={`${student.full_name} өзгөртүү`}
-                              className="flex h-8 w-8 items-center justify-center rounded-md text-[#5a7a60] transition hover:bg-[#edf5ee]"
-                              onClick={() => onEdit(student)}
-                              type="button"
-                            >
+                            <button aria-label={`${student.full_name} өзгөртүү`}
+                              className="flex h-8 w-8 items-center justify-center rounded-md text-[#5a7a60] hover:bg-[#edf5ee]"
+                              onClick={() => onEdit(student)} type="button">
                               <Pencil size={15} />
                             </button>
-                            <button
-                              aria-label={`${student.full_name} өчүрүү`}
-                              className="flex h-8 w-8 items-center justify-center rounded-md text-[#b9504c] transition hover:bg-[#fff0ed]"
-                              onClick={() => onDelete(student)}
-                              type="button"
-                            >
+                            <button aria-label={`${student.full_name} өчүрүү`}
+                              className="flex h-8 w-8 items-center justify-center rounded-md text-[#b9504c] hover:bg-[#fff0ed]"
+                              onClick={() => onDelete(student)} type="button">
                               <Trash2 size={15} />
                             </button>
                           </div>
@@ -575,22 +738,17 @@ export default function DailyJournal({
       {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e6ece8] bg-[#fafcf9] px-4 py-3 sm:px-6">
         <div className="flex flex-wrap gap-3">
-          {ACTIVE_STATUS_KEYS.map((key) => {
-            const s = ACTIVE_STATUSES[key];
-            const Icon = s.icon;
-            return (
-              <span className="flex items-center gap-1 text-[11px] font-bold text-[#7a8e82]" key={key}>
-                <span className={`h-2 w-2 rounded-full ${s.dot}`} />
-                <Icon size={11} />
-                {s.labelFull}
-              </span>
-            );
-          })}
-          <span className="flex items-center gap-1 text-[11px] font-bold text-[#7a8e82]">
-            <span className="h-2 w-2 rounded-full bg-[#ef5350]" />
-            <WifiOff size={11} />
-            Келген жок
-          </span>
+          {[
+            { key: "OFFLINE", label: "Оффлайн", dot: "bg-[#43a047]", Icon: MonitorSmartphone },
+            { key: "ONLINE",  label: "Онлайн",  dot: "bg-[#1e88e5]", Icon: Wifi },
+            { key: "ABSENT",  label: "Келген жок", dot: "bg-[#ef5350]", Icon: WifiOff },
+          ].map(({ key, label, dot, Icon }) => (
+            <span className="flex items-center gap-1 text-[11px] font-bold text-[#7a8e82]" key={key}>
+              <span className={`h-2 w-2 rounded-full ${dot}`} />
+              <Icon size={11} />
+              {label}
+            </span>
+          ))}
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] text-[#aabab0]">
           {!canEditNow && (
@@ -598,7 +756,6 @@ export default function DailyJournal({
               🔒 Архивделген
             </span>
           )}
-          {search && <span>{filtered.length} / {students.length} табылды</span>}
         </div>
       </div>
     </section>
