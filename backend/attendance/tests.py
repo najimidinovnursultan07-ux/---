@@ -1,11 +1,14 @@
-from datetime import date
+from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from authentication.models import UserProfile
 
 from attendance.models import ActivityReport, Attendance, Student, StudentGroup
+from attendance.views import AttendanceViewSet
 
 
 class AttendanceApiTests(APITestCase):
@@ -113,7 +116,15 @@ class AttendanceApiTests(APITestCase):
 		self.assertEqual(report.topic, 'Тест')
 
 	def test_daily_pdf_includes_activity_reports(self):
-		ActivityReport.objects.create(
+		live_stream = ActivityReport.objects.create(
+			mentor=self.user,
+			report_type=ActivityReport.ReportType.LIVE_STREAM,
+			report_date=date.today(),
+			topic='Кыргыз тили боюнча түз эфир',
+			event_datetime=timezone.now(),
+			summary='Негизги темалар талкууланды.',
+		)
+		kahoot = ActivityReport.objects.create(
 			mentor=self.user,
 			report_type=ActivityReport.ReportType.KAHOOT,
 			report_date=date.today(),
@@ -121,21 +132,51 @@ class AttendanceApiTests(APITestCase):
 			summary='Окуучулар активдүү катышты.',
 			first_place='Айдана',
 		)
+		ActivityReport.objects.create(
+			mentor=self.user,
+			report_type=ActivityReport.ReportType.KAHOOT,
+			report_date=date.today() + timedelta(days=40),
+			topic='Башка айдагы викторина',
+			summary='Башка отчет мезгили.',
+		)
+		included_report_ids = []
+		original_builder = AttendanceViewSet._build_activity_report_section
 
-		response = self.client.get('/api/attendance/report-pdf/', {'date': date.today().isoformat()})
+		def capture_report_section(reports, *args):
+			selected_reports = list(reports)
+			included_report_ids.append({report.id for report in selected_reports})
+			return original_builder(selected_reports, *args)
 
-		self.assertEqual(response.status_code, 200)
-		self.assertEqual(response['Content-Type'], 'application/pdf')
-		self.assertIn(b'%PDF', response.content[:20])
+		with patch.object(AttendanceViewSet, '_build_activity_report_section', side_effect=capture_report_section):
+			response = self.client.get('/api/attendance/report-pdf/', {'date': date.today().isoformat()})
 
-		monthly_response = self.client.get('/api/attendance/mentor-monthly-pdf/', {
-			'year': date.today().year,
-			'month': date.today().month,
-		})
+			self.assertEqual(response.status_code, 200)
+			self.assertEqual(response['Content-Type'], 'application/pdf')
+			self.assertIn(b'%PDF', response.content[:20])
+			self.assertEqual(included_report_ids[-1], {live_stream.id, kahoot.id})
 
-		self.assertEqual(monthly_response.status_code, 200)
-		self.assertEqual(monthly_response['Content-Type'], 'application/pdf')
-		self.assertIn(b'%PDF', monthly_response.content[:20])
+			monthly_response = self.client.get('/api/attendance/mentor-monthly-pdf/', {
+				'year': date.today().year,
+				'month': date.today().month,
+			})
+
+			self.assertEqual(monthly_response.status_code, 200)
+			self.assertEqual(monthly_response['Content-Type'], 'application/pdf')
+			self.assertIn(b'%PDF', monthly_response.content[:20])
+			self.assertEqual(included_report_ids[-1], {live_stream.id, kahoot.id})
+
+			curator = get_user_model().objects.create_user(username='pdf-curator@example.com')
+			UserProfile.objects.create(user=curator, role=UserProfile.Role.CURATOR, is_approved=True)
+			self.client.force_authenticate(curator)
+			curator_monthly_response = self.client.get('/api/attendance/curator-monthly-pdf/', {
+				'year': date.today().year,
+				'month': date.today().month,
+			})
+
+			self.assertEqual(curator_monthly_response.status_code, 200)
+			self.assertEqual(curator_monthly_response['Content-Type'], 'application/pdf')
+			self.assertIn(b'%PDF', curator_monthly_response.content[:20])
+			self.assertEqual(included_report_ids[-1], {live_stream.id, kahoot.id})
 
 	def test_history_returns_three_month_matrix(self):
 		response = self.client.get('/api/attendance/history/', {'months': 3})
