@@ -62,3 +62,28 @@ class Attendance(models.Model):
 
 	def __str__(self):
 		return f'{self.student.full_name} - {self.date}'
+
+
+class ActivityReport(models.Model):
+	class ReportType(models.TextChoices):
+		LIVE_STREAM = 'LIVE_STREAM', 'Түз эфир отчету'
+		KAHOOT = 'KAHOOT', 'Каахут отчету'
+
+	mentor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activity_reports')
+	report_type = models.CharField(max_length=20, choices=ReportType.choices)
+	report_date = models.DateField(db_index=True)
+	topic = models.CharField(max_length=255)
+	event_datetime = models.DateTimeField(null=True, blank=True)
+	link = models.URLField(max_length=1000, blank=True, default='')
+	summary = models.TextField()
+	first_place = models.CharField(max_length=255, blank=True, default='')
+	second_place = models.CharField(max_length=255, blank=True, default='')
+	third_place = models.CharField(max_length=255, blank=True, default='')
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ['report_date', 'created_at']
+
+	def __str__(self):
+		return f'{self.get_report_type_display()} - {self.topic} ({self.report_date})'

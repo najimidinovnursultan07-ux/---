@@ -24,8 +24,9 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 from authentication.permissions import IsAdminUserRole, IsApprovedUser, IsCurator, IsMentor, IsMentorOrAdmin, request_role
 
-from .models import Attendance, Student, StudentGroup
+from .models import ActivityReport, Attendance, Student, StudentGroup
 from .serializers import (
+	ActivityReportSerializer,
 	AttendanceBulkSerializer,
 	AttendanceModeBulkSerializer,
 	AttendanceReportSerializer,
@@ -34,6 +35,35 @@ from .serializers import (
 	StudentGroupSerializer,
 	StudentSerializer,
 )
+
+
+class ActivityReportViewSet(viewsets.ModelViewSet):
+	serializer_class = ActivityReportSerializer
+	http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
+
+	def get_permissions(self):
+		if self.action == 'list':
+			return [IsApprovedUser()]
+		return [IsMentor()]
+
+	def get_queryset(self):
+		queryset = ActivityReport.objects.select_related('mentor')
+		role = request_role(self.request)
+		if role == 'MENTOR':
+			queryset = queryset.filter(mentor=self.request.user)
+		mentor_id = self.request.query_params.get('mentor_id')
+		if mentor_id and role in {'ADMIN', 'CURATOR'}:
+			queryset = queryset.filter(mentor_id=mentor_id)
+		report_date = self.request.query_params.get('report_date')
+		if report_date:
+			parsed_report_date = parse_date(report_date)
+			if parsed_report_date is None:
+				raise ValidationError({'report_date': 'Күн форматы YYYY-MM-DD болушу керек.'})
+			queryset = queryset.filter(report_date=parsed_report_date)
+		return queryset
+
+	def perform_create(self, serializer):
+		serializer.save(mentor=self.request.user)
 
 
 class StudentGroupViewSet(viewsets.ModelViewSet):
@@ -387,6 +417,20 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			('TOPPADDING', (0, 0), (-1, -1), 6),
 		]))
 		content.append(table)
+		reports = ActivityReport.objects.select_related('mentor').filter(report_date=selected_date)
+		if request_role(request) == 'MENTOR':
+			reports = reports.filter(mentor=request.user)
+		mentor_id = request.query_params.get('mentor_id')
+		if mentor_id and request_role(request) in {'ADMIN', 'CURATOR'}:
+			reports = reports.filter(mentor_id=mentor_id)
+		font_bold = 'AttendanceUnicode'
+		bold_font_path = Path('C:/Windows/Fonts/arialbd.ttf')
+		if bold_font_path.exists():
+			font_bold = 'AttendanceUnicodeBold'
+			if font_bold not in pdfmetrics.getRegisteredFontNames():
+				pdfmetrics.registerFont(TTFont(font_bold, str(bold_font_path)))
+		self._register_styles(styles, font_name, font_bold)
+		content.extend(self._build_activity_report_section(reports, styles, font_name, font_bold))
 		document.build(content)
 		return response
 
@@ -473,10 +517,61 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 			styles.add(ParagraphStyle('OkSub', fontName=font_name, fontSize=10, leading=14, textColor=colors.HexColor('#5a6a7a')))
 		if 'OkBody' not in styles:
 			styles.add(ParagraphStyle('OkBody', fontName=font_name, fontSize=10, leading=13, textColor=NAVY))
+		if 'OkReportHeading' not in styles:
+			styles.add(ParagraphStyle('OkReportHeading', parent=styles['OkBody'], fontName=font_bold, fontSize=11, leading=14))
 		if 'OkSmall' not in styles:
 			styles.add(ParagraphStyle('OkSmall', fontName=font_name, fontSize=8, leading=11, textColor=colors.HexColor('#5a6a7a')))
 		if 'OkFooter' not in styles:
 			styles.add(ParagraphStyle('OkFooter', fontName=font_name, fontSize=8, leading=10, textColor=colors.HexColor('#9aabb0'), alignment=TA_CENTER))
+
+	@staticmethod
+	def _build_activity_report_section(reports, styles, font_name, font_bold):
+		from xml.sax.saxutils import escape
+
+		reports = list(reports)
+		if not reports:
+			return []
+
+		content = [Spacer(1, 8 * mm), Paragraph('Кошумча отчеттор', styles['OkTitle'])]
+		for report in reports:
+			is_stream = report.report_type == ActivityReport.ReportType.LIVE_STREAM
+			title = 'Түз эфир отчету' if is_stream else 'Каахут отчету'
+			rows = [
+				[Paragraph(title, styles['OkReportHeading']), Paragraph(escape(report.topic), styles['OkBody'])],
+			]
+			if is_stream and report.event_datetime:
+				local_datetime = timezone.localtime(report.event_datetime)
+				rows.append([
+					Paragraph('Убактысы', styles['OkSmall']),
+					Paragraph(escape(local_datetime.strftime('%Y-%m-%d %H:%M')), styles['OkBody']),
+				])
+			if not is_stream:
+				for label, winner in (
+					('1-орун', report.first_place),
+					('2-орун', report.second_place),
+					('3-орун', report.third_place),
+				):
+					if winner:
+						rows.append([Paragraph(label, styles['OkSmall']), Paragraph(escape(winner), styles['OkBody'])])
+			summary_label = 'Кыскача мазмуну' if is_stream else 'Жыйынтык тууралуу маалымат'
+			rows.append([
+				Paragraph(summary_label, styles['OkSmall']),
+				Paragraph(escape(report.summary).replace('\n', '<br/>'), styles['OkBody']),
+			])
+			report_table = Table(rows, colWidths=[42 * mm, 132 * mm], hAlign='LEFT')
+			report_table.setStyle(TableStyle([
+				('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FFF4EB')),
+				('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#dde4e0')),
+				('INNERGRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#e6ece8')),
+				('FONTNAME', (0, 0), (-1, -1), font_name),
+				('VALIGN', (0, 0), (-1, -1), 'TOP'),
+				('LEFTPADDING', (0, 0), (-1, -1), 8),
+				('RIGHTPADDING', (0, 0), (-1, -1), 8),
+				('TOPPADDING', (0, 0), (-1, -1), 6),
+				('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+			]))
+			content.extend([report_table, Spacer(1, 4 * mm)])
+		return content
 
 	# ─────────────────────────────────────────────
 	# Mentor monthly PDF
@@ -664,6 +759,11 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		]))
 		content.append(summary_table)
 		content.append(Spacer(1, 6 * mm))
+		activity_reports = ActivityReport.objects.filter(
+			mentor=mentor_user,
+			report_date__range=(start_date, end_date),
+		)
+		content.extend(self._build_activity_report_section(activity_reports, styles, font_name, font_bold))
 		content.append(Paragraph(f'Документ түзүлгөн: {timezone.localdate()}  ·  Okurmen Платформасы', styles['OkFooter']))
 		doc.build(content)
 		return response
@@ -840,7 +940,13 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 		total_students = students_qs.count()
 		content.append(Paragraph(f'Жалпы студент саны: {total_students}  ·  Отчет мезгили: {start_date} – {end_date}', styles['OkBody']))
 		content.append(Spacer(1, 3 * mm))
+		activity_reports = ActivityReport.objects.select_related('mentor').filter(
+			report_date__range=(start_date, end_date),
+		)
+		if mentor_id:
+			activity_reports = activity_reports.filter(mentor_id=mentor_id)
+		content.extend(self._build_activity_report_section(activity_reports, styles, font_name, font_bold))
+		content.append(Spacer(1, 3 * mm))
 		content.append(Paragraph(f'Документ түзүлгөн: {timezone.localdate()}  ·  Okurmen Платформасы', styles['OkFooter']))
 		doc.build(content)
 		return response
-

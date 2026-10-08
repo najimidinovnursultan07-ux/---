@@ -93,6 +93,27 @@ export async function downloadAttendancePdf(date) {
   return response.data;
 }
 
+export async function fetchActivityReports(reportDate) {
+  const { data } = await axiosInstance.get("/activity-reports/", {
+    params: { report_date: reportDate },
+  });
+  return unwrapResults(data);
+}
+
+export async function createActivityReport(report) {
+  const { data } = await axiosInstance.post("/activity-reports/", report);
+  return data;
+}
+
+export async function updateActivityReport(reportId, report) {
+  const { data } = await axiosInstance.patch(`/activity-reports/${reportId}/`, report);
+  return data;
+}
+
+export async function deleteActivityReport(reportId) {
+  await axiosInstance.delete(`/activity-reports/${reportId}/`);
+}
+
 export async function fetchSalaryRows(startDate, endDate) {
   const { data } = await axiosInstance.get("/finance/salaries/", {
     params: { start_date: startDate, end_date: endDate },

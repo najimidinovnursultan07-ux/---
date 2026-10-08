@@ -93,6 +93,10 @@ The API provides:
 - `GET /api/attendance/?date=YYYY-MM-DD`
 - `POST /api/attendance/save-bulk/`
 - `GET /api/attendance/report/?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+- `GET/POST /api/activity-reports/` for mentor live stream and Kahoot reports; use `?report_date=YYYY-MM-DD` to filter a day.
+- `PATCH/DELETE /api/activity-reports/<id>/` for a mentor's own reports.
+
+Activity reports are saved with their mentor and reporting date, and are included in the daily attendance PDF and the monthly mentor/curator PDF exports.
 
 ## Roles
 

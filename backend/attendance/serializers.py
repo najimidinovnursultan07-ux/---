@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from django.contrib.auth import get_user_model
 
-from .models import Attendance, Student, StudentGroup
+from .models import ActivityReport, Attendance, Student, StudentGroup
 
 User = get_user_model()
 
@@ -110,3 +110,26 @@ class AttendanceReportSerializer(serializers.Serializer):
     offline_days = serializers.IntegerField()
     absent_days = serializers.IntegerField()
     attendance_rate = serializers.FloatField()
+
+
+class ActivityReportSerializer(serializers.ModelSerializer):
+    mentor_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ActivityReport
+        fields = [
+            'id', 'mentor', 'mentor_name', 'report_type', 'report_date', 'topic',
+            'event_datetime', 'link', 'summary', 'first_place', 'second_place',
+            'third_place', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'mentor', 'mentor_name', 'created_at', 'updated_at']
+
+    def get_mentor_name(self, report):
+        return report.mentor.get_full_name() or report.mentor.email or report.mentor.username
+
+    def validate(self, attrs):
+        report_type = attrs.get('report_type', getattr(self.instance, 'report_type', None))
+        event_datetime = attrs.get('event_datetime', getattr(self.instance, 'event_datetime', None))
+        if report_type == ActivityReport.ReportType.LIVE_STREAM and not event_datetime:
+            raise serializers.ValidationError({'event_datetime': 'Эфирдин убактысын көрсөтүңүз.'})
+        return attrs

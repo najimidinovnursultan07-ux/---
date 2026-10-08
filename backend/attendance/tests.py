@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 
 from authentication.models import UserProfile
 
-from attendance.models import Attendance, Student, StudentGroup
+from attendance.models import ActivityReport, Attendance, Student, StudentGroup
 
 
 class AttendanceApiTests(APITestCase):
@@ -70,6 +70,72 @@ class AttendanceApiTests(APITestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response['Content-Type'], 'application/pdf')
 		self.assertIn(b'%PDF', response.content[:20])
+
+	def test_mentor_can_save_and_list_activity_reports_for_a_day(self):
+		payload = {
+			'report_type': ActivityReport.ReportType.LIVE_STREAM,
+			'report_date': date.today().isoformat(),
+			'topic': 'Кыргыз тили',
+			'event_datetime': '2026-10-09T19:00:00+06:00',
+			'link': 'https://example.com/recording',
+			'summary': 'Негизги темалар талкууланды.',
+		}
+		create_response = self.client.post('/api/activity-reports/', payload, format='json')
+
+		self.assertEqual(create_response.status_code, 201)
+		self.assertEqual(create_response.data['mentor'], self.user.id)
+		self.assertEqual(ActivityReport.objects.count(), 1)
+
+		list_response = self.client.get('/api/activity-reports/', {'report_date': date.today().isoformat()})
+
+		self.assertEqual(list_response.status_code, 200)
+		self.assertEqual(len(list_response.data), 1)
+		self.assertEqual(list_response.data[0]['topic'], 'Кыргыз тили')
+
+	def test_mentor_cannot_update_another_mentors_activity_report(self):
+		other_mentor = get_user_model().objects.create_user(username='other-report-mentor@example.com')
+		report = ActivityReport.objects.create(
+			mentor=other_mentor,
+			report_type=ActivityReport.ReportType.KAHOOT,
+			report_date=date.today(),
+			topic='Тест',
+			summary='Жыйынтык',
+		)
+
+		response = self.client.patch(
+			f'/api/activity-reports/{report.id}/',
+			{'topic': 'Өзгөртүлгөн тема'},
+			format='json',
+		)
+
+		self.assertEqual(response.status_code, 404)
+		report.refresh_from_db()
+		self.assertEqual(report.topic, 'Тест')
+
+	def test_daily_pdf_includes_activity_reports(self):
+		ActivityReport.objects.create(
+			mentor=self.user,
+			report_type=ActivityReport.ReportType.KAHOOT,
+			report_date=date.today(),
+			topic='Англис тили боюнча викторина',
+			summary='Окуучулар активдүү катышты.',
+			first_place='Айдана',
+		)
+
+		response = self.client.get('/api/attendance/report-pdf/', {'date': date.today().isoformat()})
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response['Content-Type'], 'application/pdf')
+		self.assertIn(b'%PDF', response.content[:20])
+
+		monthly_response = self.client.get('/api/attendance/mentor-monthly-pdf/', {
+			'year': date.today().year,
+			'month': date.today().month,
+		})
+
+		self.assertEqual(monthly_response.status_code, 200)
+		self.assertEqual(monthly_response['Content-Type'], 'application/pdf')
+		self.assertIn(b'%PDF', monthly_response.content[:20])
 
 	def test_history_returns_three_month_matrix(self):
 		response = self.client.get('/api/attendance/history/', {'months': 3})

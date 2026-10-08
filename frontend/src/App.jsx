@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Archive, CheckCircle2, FileText, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Archive, CheckCircle2, FileText, Menu, RefreshCw, Trophy, Video, X } from "lucide-react";
 import { fetchMe } from "./api/authApi";
 import { clearAuth, getRole, setRole } from "./api/tokenStorage";
 import AuthPanel from "./components/AuthPanel";
@@ -24,6 +24,7 @@ import GroupTabs from "./components/GroupTabs";
 import MentorWorkspace from "./components/MentorWorkspace";
 import AccountantDashboard from "./components/AccountantDashboard";
 import MonthlyReportPanel from "./components/MonthlyReportPanel";
+import ActivityReportsPanel from "./components/ActivityReportsPanel";
 import { fetchGroups } from "./api/attendanceApi";
 
 function getToday() {
@@ -43,6 +44,9 @@ export default function App() {
   const [groups, setGroups] = useState([]);
   const [activeGroupId, setActiveGroupId] = useState("all");
   const [selectedDate, setSelectedDate] = useState(getToday);
+  const [liveStreamReportDate, setLiveStreamReportDate] = useState(getToday);
+  const [kahootReportDate, setKahootReportDate] = useState(getToday);
+  const activityTodayRef = useRef(getToday());
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -60,6 +64,24 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [activeView, setActiveView] = useState("daily");
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+
+  useEffect(() => {
+    const updateReportDate = () => {
+      const today = getToday();
+      if (today === activityTodayRef.current) return;
+      activityTodayRef.current = today;
+      setLiveStreamReportDate(today);
+      setKahootReportDate(today);
+    };
+
+    const intervalId = window.setInterval(updateReportDate, 60_000);
+    document.addEventListener("visibilitychange", updateReportDate);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", updateReportDate);
+    };
+  }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   // MENTOR and ADMIN can edit attendance for any date
@@ -83,6 +105,20 @@ export default function App() {
       ),
     [attendanceRecords, visibleStudents],
   );
+
+  const navigationItems = [
+    { id: "daily", label: "Журнал", icon: null },
+    ...(activeRole === "ADMIN" || activeRole === "CURATOR"
+      ? [{ id: "history", label: "3 айлык архив", icon: Archive }]
+      : []),
+    ...(activeRole === "MENTOR"
+      ? [
+          { id: "live-stream-report", label: "Түз эфир отчету", icon: Video },
+          { id: "kahoot-report", label: "Каахут отчету", icon: Trophy },
+        ]
+      : []),
+    { id: "monthly-report", label: "Айлык PDF", icon: FileText },
+  ];
 
   // ── Data loading ───────────────────────────────────────────────────────────
   const loadAttendance = useCallback(
@@ -343,33 +379,70 @@ export default function App() {
         )}
 
         {/* ── Tab bar ─────────────────────────────────────────────────────── */}
-        <div className="mb-5 flex min-w-0 gap-1 overflow-x-auto border-b border-slate-200">
-          {[
-            { id: "daily", label: "Журнал", icon: null },
-            ...(activeRole === "ADMIN" || activeRole === "CURATOR"
-              ? [{ id: "history", label: "3 айлык архив", icon: Archive }]
-              : []),
-            { id: "monthly-report", label: "Айлык PDF", icon: FileText },
-          ].map(({ id, label, icon: Icon }) => (
+        <div className="mb-5 overflow-hidden rounded-xl border border-[#e6ece8] bg-white shadow-sm">
+          <div className="flex min-h-14 items-center justify-between gap-3 px-4 md:hidden">
+            <span className="truncate text-sm font-extrabold text-ink">
+              {navigationItems.find((item) => item.id === activeView)?.label || "Бөлүмдөр"}
+            </span>
             <button
-              key={id}
-              className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-extrabold transition ${
-                activeView === id
-                  ? "border-[#FF6B00] text-[#FF6B00]"
-                  : "border-transparent text-muted hover:text-ink"
-              }`}
-              onClick={() => setActiveView(id)}
+              aria-controls="main-navigation"
+              aria-expanded={isNavigationOpen}
+              aria-label={isNavigationOpen ? "Бөлүмдөрдүн менюсун жабуу" : "Бөлүмдөрдүн менюсун ачуу"}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d6dfd8] text-ink transition hover:bg-[#f7faf7]"
+              onClick={() => setIsNavigationOpen((open) => !open)}
               type="button"
             >
-              {Icon && <Icon size={15} />}
-              {label}
+              {isNavigationOpen ? <X size={19} /> : <Menu size={19} />}
             </button>
-          ))}
+          </div>
+          <nav
+            aria-label="Сайттын негизги бөлүмдөрү"
+            className={`${isNavigationOpen ? "grid" : "hidden"} gap-1 border-t border-[#e6ece8] p-2 md:flex md:flex-wrap md:items-center md:border-0 md:p-2`}
+            id="main-navigation"
+          >
+            {navigationItems.map(({ id, label, icon: Icon }) => (
+              <button
+                aria-current={activeView === id ? "page" : undefined}
+                className={`inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-extrabold transition sm:px-4 ${
+                  activeView === id
+                    ? "bg-[#fff4eb] text-[#d95700]"
+                    : "text-muted hover:bg-[#f7faf7] hover:text-ink"
+                }`}
+                key={id}
+                onClick={() => {
+                  setActiveView(id);
+                  setIsNavigationOpen(false);
+                }}
+                type="button"
+              >
+                {Icon && <Icon className="shrink-0" size={16} />}
+                <span className="break-words">{label}</span>
+              </button>
+            ))}
+          </nav>
         </div>
 
         {/* ── View routing ─────────────────────────────────────────────────── */}
 
         {activeView === "history" && <AttendanceHistory />}
+
+        {activeView === "live-stream-report" && activeRole === "MENTOR" && (
+          <ActivityReportsPanel
+            onReportDateChange={setLiveStreamReportDate}
+            onToast={showToast}
+            reportDate={liveStreamReportDate}
+            reportType="LIVE_STREAM"
+          />
+        )}
+
+        {activeView === "kahoot-report" && activeRole === "MENTOR" && (
+          <ActivityReportsPanel
+            onReportDateChange={setKahootReportDate}
+            onToast={showToast}
+            reportDate={kahootReportDate}
+            reportType="KAHOOT"
+          />
+        )}
 
         {activeView === "monthly-report" && (
           <MonthlyReportPanel
