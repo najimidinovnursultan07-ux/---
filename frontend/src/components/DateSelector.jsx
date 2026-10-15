@@ -1,4 +1,5 @@
 import { CalendarDays, Save, LoaderCircle } from "lucide-react";
+import { getBishkekDate } from "../utils/dateTime";
 
 export default function DateSelector({ selectedDate, onDateChange, onToday, onSave, isSaving, canEdit = true }) {
   return (
@@ -11,7 +12,7 @@ export default function DateSelector({ selectedDate, onDateChange, onToday, onSa
             <input
               className="h-11 w-full rounded-md border border-[#d6dfd8] bg-[#fbfdfb] pl-10 pr-3 text-sm text-ink outline-none transition focus:border-forest focus:ring-2 focus:ring-[#dceee1] sm:w-auto"
               id="attendance-date"
-              max={new Date().toISOString().slice(0, 10)}
+              max={getBishkekDate()}
               onChange={(event) => onDateChange(event.target.value)}
               type="date"
               value={selectedDate}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, FileText, Users } from "lucide-react";
 import { downloadCuratorMonthlyPdf, downloadMentorMonthlyPdf } from "../api/attendanceApi";
 import { fetchUsers } from "../api/authApi";
+import { getBishkekYearMonth } from "../utils/dateTime";
 
 const MONTH_NAMES = [
   "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -9,8 +10,7 @@ const MONTH_NAMES = [
 ];
 
 function getDefaultPeriod() {
-  const today = new Date();
-  return { year: today.getFullYear(), month: today.getMonth() + 1 };
+  return getBishkekYearMonth();
 }
 
 function triggerBlobDownload(blob, filename) {

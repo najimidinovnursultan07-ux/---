@@ -6,6 +6,11 @@ import {
   fetchActivityReports,
   updateActivityReport,
 } from "../api/attendanceApi";
+import {
+  formatBishkekDateTimeInput,
+  REPORT_TIME_ZONE,
+  toBishkekDateTime,
+} from "../utils/dateTime";
 
 function createEmptyForm(reportDate, reportType = "LIVE_STREAM") {
   return {
@@ -18,14 +23,6 @@ function createEmptyForm(reportDate, reportType = "LIVE_STREAM") {
     second_place: "",
     third_place: "",
   };
-}
-
-function toLocalDateTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localDate.toISOString().slice(0, 16);
 }
 
 function getErrorMessage(error, action = "сактоодо") {
@@ -120,7 +117,7 @@ export default function ActivityReportsPanel({ reportDate, reportType, onReportD
     setForm({
       ...createEmptyForm(report.report_date, report.report_type),
       topic: report.topic,
-      event_datetime: toLocalDateTime(report.event_datetime),
+      event_datetime: formatBishkekDateTimeInput(report.event_datetime),
       summary: report.summary,
       first_place: report.first_place || "",
       second_place: report.second_place || "",
@@ -132,10 +129,10 @@ export default function ActivityReportsPanel({ reportDate, reportType, onReportD
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
-    const eventDate = reportType === "LIVE_STREAM"
-      ? new Date(`${reportDate}T${form.event_datetime.slice(11, 16)}`)
+    const eventDateTime = reportType === "LIVE_STREAM"
+      ? toBishkekDateTime(reportDate, form.event_datetime.slice(11, 16))
       : null;
-    if (eventDate && Number.isNaN(eventDate.getTime())) {
+    if (reportType === "LIVE_STREAM" && !eventDateTime) {
       setError("Эфирдин күнүн жана убактысын туура көрсөтүңүз.");
       return;
     }
@@ -144,7 +141,7 @@ export default function ActivityReportsPanel({ reportDate, reportType, onReportD
       ...form,
       report_type: reportType,
       report_date: reportDate,
-      event_datetime: eventDate ? eventDate.toISOString() : null,
+      event_datetime: eventDateTime,
       topic: form.topic.trim(),
       summary: form.summary.trim(),
       first_place: reportType === "KAHOOT" ? form.first_place : "",
@@ -341,7 +338,7 @@ export default function ActivityReportsPanel({ reportDate, reportType, onReportD
                   <h4 className="mt-2 break-words font-bold text-ink">{report.topic}</h4>
                   {report.report_type === "LIVE_STREAM" && report.event_datetime && (
                     <p className="mt-1 text-xs text-muted">
-                      Убактысы: {new Date(report.event_datetime).toLocaleString("ky-KG")}
+                      Убактысы: {new Date(report.event_datetime).toLocaleString("ky-KG", { timeZone: REPORT_TIME_ZONE })}
                     </p>
                   )}
                   {report.report_type === "KAHOOT" && (

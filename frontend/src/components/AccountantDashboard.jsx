@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { fetchPayroll, fetchPayrollRates, upsertMentorRate, deleteMentorRate } from "../api/attendanceApi";
 import axiosInstance from "../api/axiosInstance";
+import { getBishkekYearMonth } from "../utils/dateTime";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -354,9 +355,9 @@ function RatesPanel({ rates, onEdit, isLoading }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AccountantDashboard({ user, onLogout }) {
-  const now = new Date();
-  const [year, setYear]   = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const { year: currentYear, month: currentMonth } = getBishkekYearMonth();
+  const [year, setYear]   = useState(currentYear);
+  const [month, setMonth] = useState(currentMonth);
   const [activeSection, setActiveSection] = useState("payroll");
   const [filterMentor, setFilterMentor]   = useState("");
 

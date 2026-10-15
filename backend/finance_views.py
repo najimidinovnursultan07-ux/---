@@ -26,15 +26,24 @@ ATTENDANCE_RATE = 150
 
 def _period_from_request(request):
     today = timezone.localdate()
-    start_date = parse_date(request.query_params.get('start_date', ''))
-    end_date = parse_date(request.query_params.get('end_date', ''))
+    raw_start_date = request.query_params.get('start_date', '')
+    raw_end_date = request.query_params.get('end_date', '')
 
-    if not start_date and not end_date:
+    if not raw_start_date and not raw_end_date:
         start_date = today.replace(day=1)
         end_date = today
-    elif not start_date or not end_date:
+    elif not raw_start_date or not raw_end_date:
         return None, None, 'start_date и end_date должны быть указаны вместе.'
-    elif start_date > end_date:
+    else:
+        try:
+            start_date = parse_date(raw_start_date)
+            end_date = parse_date(raw_end_date)
+        except ValueError:
+            return None, None, 'Даты должны быть указаны в формате YYYY-MM-DD.'
+        if start_date is None or end_date is None:
+            return None, None, 'Даты должны быть указаны в формате YYYY-MM-DD.'
+
+    if start_date > end_date:
         return None, None, 'start_date не может быть позже end_date.'
 
     return start_date, end_date, None

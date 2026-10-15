@@ -311,11 +311,21 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
 
 	@action(detail=False, methods=['get'], url_path='report')
 	def report(self, request):
-		start_date = request.query_params.get('start_date')
-		end_date = request.query_params.get('end_date')
-		if not start_date or not end_date:
+		raw_start_date = request.query_params.get('start_date', '')
+		raw_end_date = request.query_params.get('end_date', '')
+		if not raw_start_date or not raw_end_date:
 			return Response(
 				{'detail': 'start_date жана end_date параметрлери милдеттүү.'},
+				status=status.HTTP_400_BAD_REQUEST,
+			)
+		try:
+			start_date = parse_date(raw_start_date)
+			end_date = parse_date(raw_end_date)
+		except ValueError:
+			start_date = end_date = None
+		if start_date is None or end_date is None:
+			return Response(
+				{'detail': 'Күн форматы YYYY-MM-DD болушу керек.'},
 				status=status.HTTP_400_BAD_REQUEST,
 			)
 		if start_date > end_date:

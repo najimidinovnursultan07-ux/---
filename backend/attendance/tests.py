@@ -79,7 +79,7 @@ class AttendanceApiTests(APITestCase):
 			'report_type': ActivityReport.ReportType.LIVE_STREAM,
 			'report_date': date.today().isoformat(),
 			'topic': 'Кыргыз тили',
-			'event_datetime': '2026-10-09T19:00:00+06:00',
+			'event_datetime': f'{date.today().isoformat()}T19:00:00+06:00',
 			'link': 'https://example.com/recording',
 			'summary': 'Негизги темалар талкууланды.',
 		}
@@ -87,6 +87,11 @@ class AttendanceApiTests(APITestCase):
 
 		self.assertEqual(create_response.status_code, 201)
 		self.assertEqual(create_response.data['mentor'], self.user.id)
+		self.assertTrue(create_response.data['event_datetime'].endswith('+06:00'))
+		self.assertEqual(
+			timezone.localtime(ActivityReport.objects.get().event_datetime).strftime('%Y-%m-%d %H:%M:%S'),
+			f'{date.today().isoformat()} 19:00:00',
+		)
 		self.assertEqual(ActivityReport.objects.count(), 1)
 
 		list_response = self.client.get('/api/activity-reports/', {'report_date': date.today().isoformat()})
@@ -94,6 +99,35 @@ class AttendanceApiTests(APITestCase):
 		self.assertEqual(list_response.status_code, 200)
 		self.assertEqual(len(list_response.data), 1)
 		self.assertEqual(list_response.data[0]['topic'], 'Кыргыз тили')
+
+	def test_attendance_report_includes_selected_end_date_without_next_day(self):
+		curator = get_user_model().objects.create_user(username='date-range-curator@example.com')
+		UserProfile.objects.create(user=curator, role=UserProfile.Role.CURATOR, is_approved=True)
+		student = Student.objects.create(full_name='Date Range Student', group=self.group)
+		Attendance.objects.create(student=student, date=date(2026, 9, 30), is_present=True)
+		Attendance.objects.create(student=student, date=date(2026, 10, 1), is_present=True)
+		self.client.force_authenticate(curator)
+
+		response = self.client.get(
+			'/api/attendance/report/',
+			{'start_date': '2026-09-30', 'end_date': '2026-09-30'},
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.data[0]['total_days'], 1)
+		self.assertEqual(response.data[0]['present_days'], 1)
+
+	def test_attendance_report_rejects_invalid_date_range(self):
+		curator = get_user_model().objects.create_user(username='invalid-date-curator@example.com')
+		UserProfile.objects.create(user=curator, role=UserProfile.Role.CURATOR, is_approved=True)
+		self.client.force_authenticate(curator)
+
+		response = self.client.get(
+			'/api/attendance/report/',
+			{'start_date': '2026-02-30', 'end_date': '2026-03-01'},
+		)
+
+		self.assertEqual(response.status_code, 400)
 
 	def test_mentor_cannot_update_another_mentors_activity_report(self):
 		other_mentor = get_user_model().objects.create_user(username='other-report-mentor@example.com')
@@ -310,6 +344,37 @@ class FinanceSalaryApiTests(APITestCase):
 		self.assertEqual(group['present_count'], 2)
 		self.assertEqual(group['absent_count'], 2)
 		self.assertEqual(group['total_salary'], 300)
+
+	def test_financial_date_range_includes_end_date_only(self):
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 29), is_present=True, attendance_type='OFFLINE')
+		Attendance.objects.create(student=self.first_student, date=date(2026, 9, 30), is_present=True, attendance_type='OFFLINE')
+		Attendance.objects.create(student=self.first_student, date=date(2026, 10, 1), is_present=True, attendance_type='OFFLINE')
+		self.client.force_authenticate(self.accountant)
+
+		salary_response = self.client.get(
+			'/api/finance/salaries/',
+			{'start_date': '2026-09-30', 'end_date': '2026-09-30'},
+		)
+		payroll_response = self.client.get(
+			'/api/payroll/',
+			{'start_date': '2026-09-30', 'end_date': '2026-09-30'},
+		)
+
+		self.assertEqual(salary_response.status_code, 200)
+		self.assertEqual(salary_response.data['rows'][0]['lessons_count'], 1)
+		self.assertEqual(payroll_response.status_code, 200)
+		self.assertEqual(payroll_response.data['mentors'][0]['groups'][0]['lessons_count'], 1)
+
+	def test_financial_date_ranges_reject_invalid_dates(self):
+		self.client.force_authenticate(self.accountant)
+
+		for endpoint in ('/api/finance/salaries/', '/api/payroll/'):
+			with self.subTest(endpoint=endpoint):
+				response = self.client.get(
+					endpoint,
+					{'start_date': '2026-02-30', 'end_date': '2026-03-01'},
+				)
+				self.assertEqual(response.status_code, 400)
 
 	def test_mentor_cannot_access_salary_endpoint(self):
 		self.client.force_authenticate(self.mentor)

@@ -3,12 +3,7 @@ import { CalendarDays, Users } from "lucide-react";
 import { fetchAttendance, fetchGroups, fetchStudents } from "../api/attendanceApi";
 import { fetchUsers } from "../api/authApi";
 import GroupTabs from "./GroupTabs";
-
-function getToday() {
-  const today = new Date();
-  const timezoneOffset = today.getTimezoneOffset() * 60000;
-  return new Date(today.getTime() - timezoneOffset).toISOString().slice(0, 10);
-}
+import { getBishkekDate } from "../utils/dateTime";
 
 export default function MentorWorkspace({ role }) {
   const [mentors, setMentors] = useState([]);
@@ -16,7 +11,7 @@ export default function MentorWorkspace({ role }) {
   const [groups, setGroups] = useState([]);
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(getToday);
+  const [selectedDate, setSelectedDate] = useState(getBishkekDate);
   const [activeGroupId, setActiveGroupId] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");

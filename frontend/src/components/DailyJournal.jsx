@@ -26,6 +26,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { fetchAttendance, saveAttendance, saveAttendanceModes } from "../api/attendanceApi";
+import { getBishkekDate } from "../utils/dateTime";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -66,11 +67,6 @@ const FILTER_TABS = [
   { id: "present", label: "Келгендер" },
   { id: "absent",  label: "Келбегендер" },
 ];
-
-function getToday() {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
 
 function buildStatusMap(records) {
   const map = {};

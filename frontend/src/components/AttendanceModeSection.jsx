@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, MonitorSmartphone, Save, Search, UserRound, Wifi, WifiOff } from "lucide-react";
 import { fetchAttendance, saveAttendance, saveAttendanceModes } from "../api/attendanceApi";
-
-function getToday() {
-  const today = new Date();
-  const timezoneOffset = today.getTimezoneOffset() * 60000;
-  return new Date(today.getTime() - timezoneOffset).toISOString().slice(0, 10);
-}
+import { getBishkekDate } from "../utils/dateTime";
 
 // Three-way status per student: "OFFLINE" | "ONLINE" | "ABSENT"
 function buildStatusMap(records) {
@@ -42,7 +37,7 @@ const STATUS_OPTIONS = [
   },
 ];
 
-export default function AttendanceModeSection({ initialDate = getToday(), students, canEdit, onSaved }) {
+export default function AttendanceModeSection({ initialDate = getBishkekDate(), students, canEdit, onSaved }) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [records, setRecords] = useState([]);
   const [statusMap, setStatusMap] = useState({});
@@ -51,7 +46,7 @@ export default function AttendanceModeSection({ initialDate = getToday(), studen
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  const canEditDate = canEdit && selectedDate === getToday();
+  const canEditDate = canEdit && selectedDate === getBishkekDate();
 
   // Load attendance records for the selected date
   useEffect(() => {

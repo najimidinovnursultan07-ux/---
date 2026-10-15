@@ -26,12 +26,7 @@ import AccountantDashboard from "./components/AccountantDashboard";
 import MonthlyReportPanel from "./components/MonthlyReportPanel";
 import ActivityReportsPanel from "./components/ActivityReportsPanel";
 import { fetchGroups } from "./api/attendanceApi";
-
-function getToday() {
-  const today = new Date();
-  const timezoneOffset = today.getTimezoneOffset() * 60000;
-  return new Date(today.getTime() - timezoneOffset).toISOString().slice(0, 10);
-}
+import { getBishkekDate } from "./utils/dateTime";
 
 function getErrorMessage(error, fallback) {
   if (error?.response?.data?.detail) return error.response.data.detail;
@@ -43,10 +38,10 @@ export default function App() {
   const [students, setStudents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [activeGroupId, setActiveGroupId] = useState("all");
-  const [selectedDate, setSelectedDate] = useState(getToday);
-  const [liveStreamReportDate, setLiveStreamReportDate] = useState(getToday);
-  const [kahootReportDate, setKahootReportDate] = useState(getToday);
-  const activityTodayRef = useRef(getToday());
+  const [selectedDate, setSelectedDate] = useState(getBishkekDate);
+  const [liveStreamReportDate, setLiveStreamReportDate] = useState(getBishkekDate);
+  const [kahootReportDate, setKahootReportDate] = useState(getBishkekDate);
+  const activityTodayRef = useRef(getBishkekDate());
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -68,7 +63,7 @@ export default function App() {
 
   useEffect(() => {
     const updateReportDate = () => {
-      const today = getToday();
+      const today = getBishkekDate();
       if (today === activityTodayRef.current) return;
       activityTodayRef.current = today;
       setLiveStreamReportDate(today);
@@ -148,7 +143,7 @@ export default function App() {
   );
 
   const handleToday = useCallback(() => {
-    const today = getToday();
+    const today = getBishkekDate();
     setSelectedDate(today);
     loadAttendance(today);
   }, [loadAttendance]);
@@ -274,7 +269,7 @@ export default function App() {
         const loadedStudents = await fetchStudents();
         if (!isMounted) return;
         setStudents(loadedStudents);
-        const today = getToday();
+        const today = getBishkekDate();
         const records = await fetchAttendance(today);
         if (isMounted) setAttendanceRecords(records);
       } catch (loadError) {
